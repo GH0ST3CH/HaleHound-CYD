@@ -419,8 +419,18 @@ void loadSettings() {
         settings.displayInverted = 0;  // Normal (no inversion)
         settings.colorMode = 0;        // Default color palette
 
+        // Apply defaults to globals so they're not left uninitialized
+        brightness_level = settings.brightness;
+        screen_timeout_seconds = settings.screenTimeout;
+
+        // Write defaults to EEPROM immediately — prevents re-triggering on every boot
+        EEPROM.begin(EEPROM_SIZE);
+        EEPROM.put(0, settings);
+        EEPROM.commit();
+        EEPROM.end();
+
         #if CYD_DEBUG
-        Serial.println("[UTILS] No valid settings found, using defaults");
+        Serial.println("[UTILS] No valid settings found, using defaults (saved to EEPROM)");
         #endif
     } else {
         // Apply saved settings to globals

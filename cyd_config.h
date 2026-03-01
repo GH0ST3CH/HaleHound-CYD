@@ -7,12 +7,13 @@
 // Created: 2026-02-06
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// BOARD SELECTION: Uncomment ONE of the following lines
-// (Must match User_Setup.h selection!)
+// BOARD SELECTION: Set by PlatformIO build flags (-DCYD_35=1)
+// Default: CYD_28 when no flag specified (backwards compatible)
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define CYD_28    // ESP32-2432S028 - 2.8" 320x240 ILI9341
-//#define CYD_35    // ESP32-3248S035 - 3.5" 480x320 ST7796
+#if !defined(CYD_28) && !defined(CYD_35)
+  #define CYD_28    // Default: ESP32-2432S028 - 2.8" 320x240 ILI9341
+#endif
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIRMWARE VERSION — single source of truth
@@ -20,7 +21,10 @@
 
 #define FW_VERSION "v3.0.0"
 
-#ifdef NMRF_HAT
+#ifdef CYD_35
+  #define FW_EDITION   "CYD 3.5 Edition"
+  #define FW_DEVICE    "HaleHound-CYD-35"
+#elif defined(NMRF_HAT)
   #define FW_EDITION   "CYD-HAT Edition"
   #define FW_DEVICE    "HaleHound-CYD-HAT"
 #else
@@ -35,6 +39,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #ifdef CYD_28
+  #undef  CYD_BOARD_NAME
   #define CYD_BOARD_NAME    "HaleHound-CYD 2.8\""
   #define CYD_SCREEN_WIDTH  240
   #define CYD_SCREEN_HEIGHT 320
@@ -42,6 +47,7 @@
 #endif
 
 #ifdef CYD_35
+  #undef  CYD_BOARD_NAME
   #define CYD_BOARD_NAME    "HaleHound-CYD 3.5\""
   #define CYD_SCREEN_WIDTH  320
   #define CYD_SCREEN_HEIGHT 480
@@ -73,17 +79,12 @@
 #endif
 
 #ifdef CYD_35
-  // 3.5" SHARES SPI with display (resistive version)
-  #define CYD_TOUCH_MOSI  13    // Shared with TFT
-  #define CYD_TOUCH_MISO  12    // Shared with TFT
-  #define CYD_TOUCH_CLK   14    // Shared with TFT
-
-  // Capacitive GT911 version (uncomment if using 3248S035C)
-  //#define CYD_USE_GT911
-  //#define CYD_GT911_SDA   33
-  //#define CYD_GT911_SCL   32
-  //#define CYD_GT911_RST   25
-  //#define CYD_GT911_INT   21
+  // 3.5" CYD uses GT911 capacitive touch (I2C, not SPI)
+  #define CYD_USE_GT911
+  #define CYD_GT911_SDA   33
+  #define CYD_GT911_SCL   32
+  #define CYD_GT911_RST   21    // RST on GPIO21 (matches Bruce firmware)
+  #define CYD_GT911_INT   25    // INT on GPIO25 (was mislabeled as RST — root cause of dead touch)
 #endif
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -152,7 +153,11 @@
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define CC1101_CS       27    // Chip Select - CN1 connector
+#ifdef CYD_35
+  #define CC1101_CS     26    // Chip Select - GPIO 27 is backlight on 3.5", use GPIO 26
+#else
+  #define CC1101_CS     27    // Chip Select - CN1 connector
+#endif
 #define CC1101_GDO0     22    // TX data TO radio - P3 connector
 #ifdef NMRF_HAT
   #define CC1101_GDO2   22    // Hat: no GDO2 wire — GDO0 outputs same RX data
@@ -245,7 +250,11 @@
 
 #define UART_MON_P1_RX        3    // P1 RX pin (shared with USB Serial RX)
 #define UART_MON_P1_TX        1    // P1 TX pin (shared with USB Serial TX)
-#define UART_MON_SPK_RX      26    // Speaker connector pin (RX only)
+#ifdef CYD_35
+  #define UART_MON_SPK_RX    -1    // GPIO 26 is CC1101_CS on 3.5" — no speaker RX
+#else
+  #define UART_MON_SPK_RX    26    // Speaker connector pin (RX only)
+#endif
 #define UART_MON_DEFAULT_BAUD 115200
 #define CYD_HAS_SERIAL_MON    1
 
@@ -290,9 +299,9 @@
 
 // For 3.5" (320x480):
 #ifdef CYD_35
-  // UP button - top left
+  // UP button - top left (starts below icon bar touch zone to avoid overlap)
   #define TOUCH_BTN_UP_X1      0
-  #define TOUCH_BTN_UP_Y1      0
+  #define TOUCH_BTN_UP_Y1     60
   #define TOUCH_BTN_UP_X2    107
   #define TOUCH_BTN_UP_Y2     80
 
@@ -332,13 +341,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // VSPI Bus (GPIO 18/19/23) is SHARED by THREE devices:
-//   ┌──────────┬─────────┬───────────────────────────────┐
-//   │ Device   │ CS Pin  │ Notes                         │
-//   ├──────────┼─────────┼───────────────────────────────┤
-//   │ SD Card  │ GPIO 5  │ Built-in slot, payload storage│
-//   │ CC1101   │ GPIO 27 │ SubGHz radio                  │
-//   │ NRF24    │ GPIO 4  │ 2.4GHz radio                  │
-//   └──────────┴─────────┴───────────────────────────────┘
+//   ┌──────────┬──────────────┬───────────────────────────────┐
+//   │ Device   │ CS Pin       │ Notes                         │
+//   ├──────────┼──────────────┼───────────────────────────────┤
+//   │ SD Card  │ GPIO 5       │ Built-in slot, payload storage│
+//   │ CC1101   │ GPIO 27 (28")│ SubGHz radio                  │
+//   │          │ GPIO 26 (35")│ (27 = backlight on 3.5")      │
+//   │ NRF24    │ GPIO 4       │ 2.4GHz radio                  │
+//   └──────────┴──────────────┴───────────────────────────────┘
 //
 // IMPORTANT: Only ONE device active at a time!
 // Before using a device: Pull its CS LOW, all others HIGH
@@ -368,6 +378,96 @@
 
 #define BATTERY_ADC_PIN    34
 #define BATTERY_DIVIDER    2.0
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LAYOUT HELPERS — Use these instead of hardcoded pixel values!
+// All values compute at compile time from CYD_SCREEN_WIDTH / CYD_SCREEN_HEIGHT
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Icon bar (top navigation strip — used in almost every module)
+#define ICON_BAR_TOP      19                              // Top separator line Y
+#define ICON_BAR_Y        20                              // Content start inside icon bar
+#define ICON_BAR_BOTTOM   36                              // Bottom separator line Y
+#define ICON_BAR_H        16                              // Icon bar height (16px icons)
+#define CONTENT_Y_START   38                              // First usable Y below icon bar
+
+// Icon bar TOUCH zones (generous for capacitive touch on 3.5")
+#ifdef CYD_35
+  #define ICON_BAR_TOUCH_TOP     0                          // Touch starts at very top
+  #define ICON_BAR_TOUCH_BOTTOM  55                         // Generous bottom for fat fingers
+#else
+  #define ICON_BAR_TOUCH_TOP     ICON_BAR_Y                 // Match visual bounds on 2.8"
+  #define ICON_BAR_TOUCH_BOTTOM  (ICON_BAR_BOTTOM + 4)      // Small padding on 2.8"
+#endif
+
+// Padded content area
+#define CONTENT_PADDED_X     5                            // Left padding (5px)
+#define CONTENT_PADDED_W     (CYD_SCREEN_WIDTH - 10)      // Width with 5px padding each side
+#define CONTENT_INNER_X      10                           // Wider left padding (10px)
+#define CONTENT_INNER_W      (CYD_SCREEN_WIDTH - 20)      // Width with 10px padding each side
+
+// Graph/visualization areas
+#define GRAPH_FULL_W         (CYD_SCREEN_WIDTH - 4)       // Near full width (2px each side)
+#define GRAPH_PADDED_W       (CYD_SCREEN_WIDTH - 10)      // Standard graph width
+
+// Menu layout
+#define MENU_COLUMN_W        (CYD_SCREEN_WIDTH / 2)       // Half-screen column
+#define MENU_COL_LEFT_X      10                           // Left column start
+#define MENU_COL_RIGHT_X     (MENU_COL_LEFT_X + MENU_COLUMN_W)
+
+// Dialog boxes (centered)
+#define DIALOG_W             (CYD_SCREEN_WIDTH - 20)      // Standard dialog width
+#define DIALOG_X             10                           // Dialog left edge
+#define DIALOG_CENTER_X      (CYD_SCREEN_WIDTH / 2)       // Horizontal center
+
+// Bottom area positions (relative to screen height)
+#define BOTTOM_HINT_Y        (CYD_SCREEN_HEIGHT - 45)     // Hint text area
+#define BOTTOM_NAV_Y         (CYD_SCREEN_HEIGHT - 33)     // Navigation text
+
+// Button bar
+#define BUTTON_BAR_Y     (CYD_SCREEN_HEIGHT - 37)   // Bottom button bar top edge
+#define BUTTON_BAR_H     37                          // Button bar height
+#define STATUS_LINE_Y    (CYD_SCREEN_HEIGHT - 18)    // Status text near bottom
+#define CONTENT_BOTTOM   (BUTTON_BAR_Y - 2)          // Last usable Y before button bar
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LAYOUT SCALING — Converts 2.8" (240x320) coordinates to current screen size
+// All values compute at COMPILE TIME (integer math, no runtime cost)
+// On 2.8": SCALE_Y(215) = 215, SCALE_X(175) = 175, SCALE_W(220) = 220
+// On 3.5": SCALE_Y(215) = 322, SCALE_X(175) = 233, SCALE_W(220) = 293
+// ═══════════════════════════════════════════════════════════════════════════
+
+#define SCALE_Y(y)  ((y) * CYD_SCREEN_HEIGHT / 320)
+#define SCALE_X(x)  ((x) * CYD_SCREEN_WIDTH / 240)
+#define SCALE_W(w)  ((w) * CYD_SCREEN_WIDTH / 240)
+#define SCALE_H(h)  ((h) * CYD_SCREEN_HEIGHT / 320)
+
+// Menu button dimensions (auto-scale with column width)
+#define MENU_BTN_W          (CYD_SCREEN_WIDTH / 2 - 20)
+#define MENU_BTN_H          SCALE_H(60)
+#define MENU_ICON_OFFSET_X  ((MENU_BTN_W - 16) / 2)
+#define MENU_TEXT_OFFSET_Y  SCALE_H(30)
+
+// Submenu layout
+#define SUBMENU_Y_START     SCALE_Y(30)     // First item Y
+#define SUBMENU_Y_SPACING   SCALE_Y(30)     // Gap between items
+#define SUBMENU_LAST_GAP    SCALE_Y(10)     // Extra gap before "Back" item
+#define SUBMENU_TOUCH_W     (CYD_SCREEN_WIDTH - 20)  // Touch hit area width
+#define SUBMENU_TOUCH_H     SCALE_Y(25)     // Touch hit area height
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEXT SIZE — Scaled for display physical size
+// 2.8" (240x320): size 1 = 6x8px chars, ~40 chars/line
+// 3.5" (320x480): size 2 = 12x16px chars, ~26 chars/line (fills the space)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Text size stays at 1 on both boards — setTextSize(2) pixel-doubles and looks bad.
+// The 3.5" fills space via layout scaling (SCALE_Y/X), not font scaling.
+#define TEXT_SIZE_BODY      1     // Body text, menu items, status info
+#define TEXT_SIZE_SMALL     1     // Fine print, dense data, debug info
+#define TEXT_LINE_H        12     // Line height for body text
+#define TEXT_LINE_H_SMALL  12     // Line height for small text
+#define TEXT_CHAR_W         6     // Character width at body size
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEBUG SETTINGS

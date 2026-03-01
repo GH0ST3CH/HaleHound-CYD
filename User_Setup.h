@@ -4,11 +4,13 @@
 // Created: 2026-02-06
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// BOARD SELECTION: Uncomment ONE of the following lines
+// BOARD SELECTION: Set by PlatformIO build flags (-DCYD_35=1)
+// Default: CYD_28 when no flag specified (backwards compatible)
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define CYD_28    // ESP32-2432S028 - 2.8" 320x240 ILI9341
-//#define CYD_35    // ESP32-3248S035 - 3.5" 480x320 ST7796
+#if !defined(CYD_28) && !defined(CYD_35)
+  #define CYD_28    // Default: ESP32-2432S028 - 2.8" 320x240 ILI9341
+#endif
 
 // ═══════════════════════════════════════════════════════════════════════════
 // USER DEFINED SETTINGS - TFT_eSPI Library Configuration
@@ -62,8 +64,10 @@
 // SECTION 2B: TOUCH CONTROLLER PINS
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Touch chip select - same for both boards
-#define TOUCH_CS 33
+// Touch chip select - XPT2046 (2.8" only, NOT GT911)
+#ifdef CYD_28
+  #define TOUCH_CS 33
+#endif
 
 #ifdef CYD_28
   // 2.8" has DEDICATED touch SPI bus (separate from display)
@@ -75,21 +79,13 @@
 #endif
 
 #ifdef CYD_35
-  // 3.5" SHARES SPI bus with display (resistive touch version)
-  // For capacitive GT911 version, touch uses I2C instead
-  #define CYD_TOUCH_IRQ   36
-  #define CYD_TOUCH_MOSI  13   // Shared with TFT_MOSI
-  #define CYD_TOUCH_MISO  12   // Shared with TFT_MISO
-  #define CYD_TOUCH_CLK   14   // Shared with TFT_SCLK
+  // 3.5" CYD uses GT911 capacitive touch (I2C, not SPI)
+  // No SPI touch pins needed — GT911 is I2C on dedicated pins
   #define CYD_TOUCH_SEPARATE_SPI 0
 
-  // GT911 Capacitive touch (if using C variant)
-  // Uncomment these if you have the capacitive version
-  //#define CYD_35_CAPACITIVE
-  //#define CYD_GT911_SDA   33
-  //#define CYD_GT911_SCL   32
-  //#define CYD_GT911_RST   25
-  //#define CYD_GT911_INT   21
+  // GT911 pin definitions are in cyd_config.h (single source of truth)
+  // SDA=33, SCL=32, RST=21, INT=25
+  #define CYD_35_CAPACITIVE
 #endif
 
 // ═══════════════════════════════════════════════════════════════════════════

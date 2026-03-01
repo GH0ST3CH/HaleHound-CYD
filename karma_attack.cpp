@@ -83,16 +83,16 @@ static int scrollOffset = 0;
 // ═══════════════════════════════════════════════════════════════════════════
 
 static void drawKAIconBar() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawBitmap(10, 20, bitmap_icon_go_back, 16, 16, HALEHOUND_MAGENTA);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawBitmap(10, ICON_BAR_Y, bitmap_icon_go_back, 16, 16, HALEHOUND_MAGENTA);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 static bool isKABackTapped() {
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        if (ty >= 20 && ty <= 36 && tx >= 10 && tx < 30) {
+        if (ty >= (ICON_BAR_Y - 2) && ty <= (ICON_BAR_BOTTOM + 4) && tx >= 10 && tx < 30) {
             delay(150);
             return true;
         }
@@ -276,34 +276,34 @@ static void drawCollectScreen() {
     tft.fillScreen(HALEHOUND_BLACK);
     drawStatusBar();
     drawKAIconBar();
-    drawGlitchText(55, "KARMA", &Nosifer_Regular10pt7b);
-    tft.drawLine(0, 58, SCREEN_WIDTH, 58, HALEHOUND_HOTPINK);
+    drawGlitchText(SCALE_Y(55), "KARMA", &Nosifer_Regular10pt7b);
+    tft.drawLine(0, SCALE_Y(58), SCREEN_WIDTH, SCALE_Y(58), HALEHOUND_HOTPINK);
 
     // Stats labels
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 64);
+    tft.setCursor(10, SCALE_Y(64));
     tft.print("PROBES:");
-    tft.setCursor(100, 64);
+    tft.setCursor(SCALE_X(100), SCALE_Y(64));
     tft.print("SSIDs:");
-    tft.setCursor(175, 64);
+    tft.setCursor(SCALE_X(175), SCALE_Y(64));
     tft.print("CLIENTS:");
 
-    tft.drawLine(5, 76, 235, 76, HALEHOUND_VIOLET);
+    tft.drawLine(5, SCALE_Y(76), GRAPH_PADDED_W, SCALE_Y(76), HALEHOUND_VIOLET);
 
     // Column headers
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 80);
+    tft.setCursor(10, SCALE_Y(80));
     tft.print("SSID");
-    tft.setCursor(175, 80);
+    tft.setCursor(SCALE_X(175), SCALE_Y(80));
     tft.print("CNT");
-    tft.setCursor(205, 80);
+    tft.setCursor(SCALE_X(205), SCALE_Y(80));
     tft.print("CLIENT");
-    tft.drawLine(5, 90, 235, 90, HALEHOUND_GUNMETAL);
+    tft.drawLine(5, SCALE_Y(90), GRAPH_PADDED_W, SCALE_Y(90), HALEHOUND_GUNMETAL);
 
     // Footer
     tft.setTextColor(HALEHOUND_GUNMETAL);
-    tft.setCursor(10, 300);
+    tft.setCursor(10, SCREEN_HEIGHT - 20);
     tft.print("Tap SSID to spawn rogue AP");
 }
 
@@ -311,34 +311,40 @@ static void updateCollectDisplay() {
     tft.setTextSize(1);
 
     // Stats values
-    tft.fillRect(50, 64, 45, 10, HALEHOUND_BLACK);
+    tft.fillRect(SCALE_X(50), SCALE_Y(64), SCALE_W(45), 10, HALEHOUND_BLACK);
     tft.setTextColor(HALEHOUND_MAGENTA);
-    tft.setCursor(50, 64);
+    tft.setCursor(SCALE_X(50), SCALE_Y(64));
     tft.print(totalProbes);
 
-    tft.fillRect(140, 64, 30, 10, HALEHOUND_BLACK);
-    tft.setCursor(140, 64);
+    tft.fillRect(SCALE_X(140), SCALE_Y(64), SCALE_W(30), 10, HALEHOUND_BLACK);
+    tft.setCursor(SCALE_X(140), SCALE_Y(64));
     tft.print(ssidCount);
 
-    tft.fillRect(225, 64, 15, 10, HALEHOUND_BLACK);
-    tft.setCursor(225, 64);
+    tft.fillRect(SCREEN_WIDTH - 15, SCALE_Y(64), 15, 10, HALEHOUND_BLACK);
+    tft.setCursor(SCREEN_WIDTH - 15, SCALE_Y(64));
     tft.print(uniqueClients);
 
     // Channel indicator
-    tft.fillRect(200, 300, 40, 10, HALEHOUND_BLACK);
+    tft.fillRect(SCALE_X(200), SCREEN_HEIGHT - 20, SCALE_W(40), 10, HALEHOUND_BLACK);
     tft.setTextColor(blinkState ? HALEHOUND_MAGENTA : HALEHOUND_GUNMETAL);
-    tft.setCursor(200, 300);
+    tft.setCursor(SCALE_X(200), SCREEN_HEIGHT - 20);
     tft.printf("CH:%d", hopChannels[currentHopIndex]);
 
     // SSID list
-    tft.fillRect(5, 92, 230, 200, HALEHOUND_BLACK);
+    int listY = SCALE_Y(92);
+    int lineH = SCALE_Y(19);
+    int listH = SCREEN_HEIGHT - 30 - listY;
+    tft.fillRect(5, listY, GRAPH_PADDED_W, listH, HALEHOUND_BLACK);
 
     int showCount = ssidCount - scrollOffset;
     if (showCount > KA_MAX_DISPLAY) showCount = KA_MAX_DISPLAY;
 
+    // Adaptive SSID truncation for screen width
+    int ssidMaxChars = (SCREEN_WIDTH > 240) ? 26 : 21;
+
     for (int i = 0; i < showCount; i++) {
         int idx = i + scrollOffset;
-        int y = 94 + (i * 19);
+        int y = listY + 2 + (i * lineH);
 
         ProbeEntry& entry = ssidPool[idx];
 
@@ -348,28 +354,28 @@ static void updateCollectDisplay() {
         // SSID name
         tft.setTextColor(recent ? HALEHOUND_MAGENTA : HALEHOUND_VIOLET);
         tft.setCursor(10, y);
-        char truncSSID[22];
-        strncpy(truncSSID, entry.ssid, 21);
-        truncSSID[21] = '\0';
+        char truncSSID[28];
+        strncpy(truncSSID, entry.ssid, ssidMaxChars);
+        truncSSID[ssidMaxChars] = '\0';
         tft.print(truncSSID);
 
         // Probe count
         tft.setTextColor(HALEHOUND_GUNMETAL);
-        tft.setCursor(175, y);
+        tft.setCursor(SCALE_X(175), y);
         tft.print(entry.probeCount);
 
         // Client MAC (last 3 bytes)
-        tft.setCursor(200, y);
+        tft.setCursor(SCALE_X(200), y);
         tft.printf("%02X%02X%02X",
                    entry.clientMAC[3], entry.clientMAC[4], entry.clientMAC[5]);
 
         // Separator line
-        tft.drawFastHLine(10, y + 16, 220, HALEHOUND_DARK);
+        tft.drawFastHLine(10, y + lineH - 3, CONTENT_INNER_W, HALEHOUND_DARK);
     }
 
     if (ssidCount == 0) {
         tft.setTextColor(HALEHOUND_GUNMETAL);
-        tft.setCursor(30, 150);
+        tft.setCursor(30, SCALE_Y(150));
         if (blinkState) {
             tft.print("Listening for probes...");
         } else {
@@ -381,9 +387,12 @@ static void updateCollectDisplay() {
 static int checkSSIDListTouch() {
     uint16_t tx, ty;
     if (!getTouchPoint(&tx, &ty)) return -1;
-    if (ty < 92 || ty > 284) return -1;
+    int listY = SCALE_Y(92);
+    int lineH = SCALE_Y(19);
+    int listBottom = listY + KA_MAX_DISPLAY * lineH;
+    if (ty < listY || ty > listBottom) return -1;
 
-    int index = (ty - 92) / 19 + scrollOffset;
+    int index = (ty - listY) / lineH + scrollOffset;
     if (index < 0 || index >= ssidCount) return -1;
 
     delay(200);
@@ -398,35 +407,35 @@ static void drawAttackScreen() {
     tft.fillScreen(HALEHOUND_BLACK);
     drawStatusBar();
     drawKAIconBar();
-    drawGlitchText(55, "KARMA", &Nosifer_Regular10pt7b);
-    tft.drawLine(0, 58, SCREEN_WIDTH, 58, HALEHOUND_HOTPINK);
+    drawGlitchText(SCALE_Y(55), "KARMA", &Nosifer_Regular10pt7b);
+    tft.drawLine(0, SCALE_Y(58), SCREEN_WIDTH, SCALE_Y(58), HALEHOUND_HOTPINK);
 
     // Target SSID
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 68);
+    tft.setCursor(10, SCALE_Y(68));
     tft.print("TARGET:");
     tft.setTextColor(HALEHOUND_MAGENTA);
-    tft.setCursor(60, 68);
+    tft.setCursor(SCALE_X(60), SCALE_Y(68));
     tft.print(ssidPool[selectedSSID].ssid);
 
-    tft.drawLine(5, 82, 235, 82, HALEHOUND_VIOLET);
+    tft.drawLine(5, SCALE_Y(82), GRAPH_PADDED_W, SCALE_Y(82), HALEHOUND_VIOLET);
 
     // Status
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 90);
+    tft.setCursor(10, SCALE_Y(90));
     tft.print("Spawning rogue AP...");
 
     tft.setTextColor(HALEHOUND_MAGENTA);
-    tft.setCursor(10, 110);
+    tft.setCursor(10, SCALE_Y(110));
     tft.print("AP SSID: ");
     tft.print(ssidPool[selectedSSID].ssid);
 
-    tft.setCursor(10, 130);
+    tft.setCursor(10, SCALE_Y(130));
     tft.print("Handing off to Captive Portal");
-    tft.setCursor(10, 148);
+    tft.setCursor(10, SCALE_Y(148));
     tft.print("GARMR engine for credential");
-    tft.setCursor(10, 166);
+    tft.setCursor(10, SCALE_Y(166));
     tft.print("harvest...");
 }
 
@@ -508,12 +517,13 @@ void loop() {
         // Scroll support — check touches at top/bottom edges
         uint16_t tx, ty;
         if (getTouchPoint(&tx, &ty)) {
-            if (ty > 284 && ty < 300 && ssidCount > KA_MAX_DISPLAY) {
+            int listBottom = SCALE_Y(92) + KA_MAX_DISPLAY * SCALE_Y(19);
+            if (ty > listBottom && ty < (listBottom + 16) && ssidCount > KA_MAX_DISPLAY) {
                 if (scrollOffset < ssidCount - KA_MAX_DISPLAY) {
                     scrollOffset++;
                     delay(150);
                 }
-            } else if (ty > 58 && ty < 76 && scrollOffset > 0) {
+            } else if (ty > SCALE_Y(58) && ty < SCALE_Y(76) && scrollOffset > 0) {
                 scrollOffset--;
                 delay(150);
             }

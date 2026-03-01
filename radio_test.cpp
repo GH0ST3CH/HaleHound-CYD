@@ -35,20 +35,20 @@ extern void drawInoIconBar();
 // Battery line:   Y=230
 // Hint:           Y=260
 
-#define RT_NRF_BTN_Y     85
-#define RT_NRF_BTN_H     23
-#define RT_NRF_STATUS_Y  110
-#define RT_NRF_HINT_Y    122
-#define RT_CC_BTN_Y      140
-#define RT_CC_BTN_H      23
-#define RT_CC_STATUS_Y   165
-#define RT_CC_HINT_Y     177
-#define RT_WIRE_BTN_Y    200
-#define RT_WIRE_BTN_H    23
-#define RT_BATT_Y        230
-#define RT_HINT_Y        260
-#define RT_BTN_X          20
-#define RT_BTN_W         200
+#define RT_NRF_BTN_Y     SCALE_Y(85)
+#define RT_NRF_BTN_H     SCALE_H(23)
+#define RT_NRF_STATUS_Y  SCALE_Y(110)
+#define RT_NRF_HINT_Y    SCALE_Y(122)
+#define RT_CC_BTN_Y      SCALE_Y(140)
+#define RT_CC_BTN_H      SCALE_H(23)
+#define RT_CC_STATUS_Y   SCALE_Y(165)
+#define RT_CC_HINT_Y     SCALE_Y(177)
+#define RT_WIRE_BTN_Y    SCALE_Y(200)
+#define RT_WIRE_BTN_H    SCALE_H(23)
+#define RT_BATT_Y        SCALE_Y(230)
+#define RT_HINT_Y        SCALE_Y(260)
+#define RT_BTN_X          10
+#define RT_BTN_W         (SCREEN_WIDTH - 20)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DRAWING HELPERS
@@ -275,9 +275,9 @@ static int wiringPage = 0;
 
 // Diagram layout constants
 #define DIAG_LEFT_X     5
-#define DIAG_LEFT_W     85
-#define DIAG_RIGHT_X    150
-#define DIAG_RIGHT_W    85
+#define DIAG_LEFT_W     SCALE_W(85)
+#define DIAG_RIGHT_X    SCALE_X(150)
+#define DIAG_RIGHT_W    SCALE_W(85)
 #define DIAG_TRACE_X1   (DIAG_LEFT_X + DIAG_LEFT_W)
 #define DIAG_TRACE_X2   DIAG_RIGHT_X
 
@@ -318,11 +318,13 @@ static void drawPageNav(int page, int total) {
     tft.setTextFont(1);
     tft.setTextSize(1);
 
+    int navY = SCREEN_HEIGHT - 33;
+
     // Left/right arrows
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
-    tft.setCursor(15, 287);
+    tft.setCursor(15, navY);
     tft.print("<");
-    tft.setCursor(SCREEN_WIDTH - 21, 287);
+    tft.setCursor(SCREEN_WIDTH - 21, navY);
     tft.print(">");
 
     // Page number
@@ -330,12 +332,12 @@ static void drawPageNav(int page, int total) {
     snprintf(buf, sizeof(buf), "%d/%d", page + 1, total);
     tft.setTextColor(HALEHOUND_HOTPINK, TFT_BLACK);
     int tw = strlen(buf) * 6;
-    tft.setCursor((SCREEN_WIDTH - tw) / 2, 287);
+    tft.setCursor((SCREEN_WIDTH - tw) / 2, navY);
     tft.print(buf);
 
     // Navigation hint
     tft.setTextColor(HALEHOUND_GUNMETAL, TFT_BLACK);
-    tft.setCursor(22, 305);
+    tft.setCursor(22, SCREEN_HEIGHT - 15);
     tft.print("TAP </> = Page  BACK = Exit");
 }
 
@@ -344,11 +346,11 @@ static void drawWiringText() {
     tft.fillScreen(TFT_BLACK);
     drawStatusBar();
     drawInoIconBar();
-    drawGlitchTitle(60, "WIRING");
+    drawGlitchTitle(SCALE_Y(60), "WIRING");
 
     tft.setTextFont(1);
     tft.setTextSize(1);
-    int y = 80;
+    int y = SCALE_Y(80);
     int lineH = 12;
 
     // NRF24 section
@@ -411,13 +413,13 @@ static void drawNrf24Diagram() {
     tft.fillScreen(TFT_BLACK);
     drawStatusBar();
     drawInoIconBar();
-    drawGlitchTitle(60, "NRF24 WIRING");
+    drawGlitchTitle(SCALE_Y(60), "NRF24 WIRING");
 
     tft.setTextFont(1);
     tft.setTextSize(1);
 
-    int pinSpace = 18;
-    int boxY = 82;
+    int pinSpace = SCALE_Y(18);
+    int boxY = SCALE_Y(82);
     int boxH = 8 * pinSpace + 22;
 
     // Left box — ESP32
@@ -465,13 +467,13 @@ static void drawGpsDiagram() {
     tft.fillScreen(TFT_BLACK);
     drawStatusBar();
     drawInoIconBar();
-    drawGlitchTitle(60, "GPS WIRING");
+    drawGlitchTitle(SCALE_Y(60), "GPS WIRING");
 
     tft.setTextFont(1);
     tft.setTextSize(1);
 
-    int pinSpace = 22;
-    int boxY = 95;
+    int pinSpace = SCALE_Y(22);
+    int boxY = SCALE_Y(95);
     int boxH = 4 * pinSpace + 22;
 
     // Left box — CYD P1 Connector
@@ -513,13 +515,13 @@ static void drawCC1101Diagram() {
     tft.fillScreen(TFT_BLACK);
     drawStatusBar();
     drawInoIconBar();
-    drawGlitchTitle(60, "CC1101 WIRING");
+    drawGlitchTitle(SCALE_Y(60), "CC1101 WIRING");
 
     tft.setTextFont(1);
     tft.setTextSize(1);
 
-    int pinSpace = 18;
-    int boxY = 82;
+    int pinSpace = SCALE_Y(18);
+    int boxY = SCALE_Y(82);
     int boxH = 8 * pinSpace + 22;
 
     // Left box — ESP32
@@ -591,14 +593,14 @@ static void showWiringScreen() {
         }
 
         // Right arrow — tap right side of screen
-        if (isTouchInArea(180, 275, 60, 40) || buttonPressed(BTN_RIGHT)) {
+        if (isTouchInArea(SCREEN_WIDTH - 60, SCREEN_HEIGHT - 45, 60, 40) || buttonPressed(BTN_RIGHT)) {
             wiringPage = (wiringPage + 1) % WIRING_NUM_PAGES;
             drawCurrentWiringPage();
             delay(250);
         }
 
         // Left arrow — tap left side of screen
-        if (isTouchInArea(0, 275, 60, 40) || buttonPressed(BTN_LEFT)) {
+        if (isTouchInArea(0, SCREEN_HEIGHT - 45, 60, 40) || buttonPressed(BTN_LEFT)) {
             wiringPage = (wiringPage + WIRING_NUM_PAGES - 1) % WIRING_NUM_PAGES;
             drawCurrentWiringPage();
             delay(250);
@@ -616,7 +618,7 @@ static void drawMainScreen() {
     tft.fillScreen(TFT_BLACK);
     drawStatusBar();
     drawInoIconBar();
-    drawGlitchTitle(60, "RADIO TEST");
+    drawGlitchTitle(SCALE_Y(60), "RADIO TEST");
 
     // NRF24 button and status
     drawRadioButton(RT_NRF_BTN_Y, RT_NRF_BTN_H, "[ NRF24L01+ ]", HALEHOUND_MAGENTA);

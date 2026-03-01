@@ -12,7 +12,11 @@
 
 #include <Arduino.h>
 #include <SPI.h>
-#include "CYD28_TouchscreenR.h"
+#ifdef CYD_35
+  #include <TAMC_GT911.h>
+#else
+  #include "CYD28_TouchscreenR.h"
+#endif
 #include <TFT_eSPI.h>
 #include "cyd_config.h"
 
@@ -60,8 +64,8 @@ struct ButtonEvent {
 // CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define TOUCH_DEBOUNCE_MS       50      // Minimum time between presses
-#define TOUCH_HOLD_THRESHOLD_MS 500     // Time before press becomes hold
+#define TOUCH_DEBOUNCE_MS       120     // Minimum time between presses (bounce rejection handles the rest)
+#define TOUCH_HOLD_THRESHOLD_MS 400     // Time before press becomes hold (capacitive is faster)
 #define TOUCH_REPEAT_MS         150     // Repeat rate when holding
 #define TOUCH_MIN_PRESSURE      400     // XPT2046 Z_THRESHOLD from library
 
@@ -152,6 +156,14 @@ void waitForRelease();
 // Clear any pending button events
 void clearButtonEvents();
 
+// Mark current touch as consumed — suppresses further reads until finger lifts
+// Called automatically by isTouchInArea/isBackButtonTapped/getTouchedMenuItem
+// Call manually when acting on raw getTouchPoint() data
+void consumeTouch();
+
+// Block until finger physically lifts off screen (direct GT911 hardware read)
+void waitForTouchRelease();
+
 // ═══════════════════════════════════════════════════════════════════════════
 // VISUAL FEEDBACK (Optional)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -172,8 +184,18 @@ void drawTouchLabels(uint16_t color);
 // Check if screen is currently being touched
 bool isTouched();
 
+// Check if finger is STILL physically on screen (bypasses edge-trigger).
+// Use for long-press detection ONLY — does NOT affect edge state.
+bool isStillTouched();
+
 // Get raw touch coordinates (returns false if not touched)
+// Edge-triggered on GT911: returns true ONCE per finger-down, then suppresses until lift.
 bool getTouchPoint(uint16_t *x, uint16_t *y);
+
+// Peek at touch coordinates WITHOUT consuming (no edge-trigger).
+// Use when you need to check position before deciding to act.
+// Call consumeTouch() manually after your action.
+bool peekTouchPoint(uint16_t *x, uint16_t *y);
 
 // Get which zone a point falls into
 ButtonID getTouchZone(uint16_t x, uint16_t y);

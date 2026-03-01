@@ -209,7 +209,7 @@ static TaskHandle_t fftTaskHandle = NULL;
 static volatile bool fftTaskRunning = false;
 
 // Shared FFT result buffer — Core 0 writes, Core 1 reads
-#define FFT_LINE_WIDTH 120  // half of 240px screen width
+#define FFT_LINE_WIDTH (SCREEN_WIDTH / 2)  // half of screen width
 static volatile int fftKValues[FFT_LINE_WIDTH];
 static volatile int fftMaxK = 0;
 static volatile bool fftFrameReady = false;
@@ -319,7 +319,7 @@ static void drawWaterfallLine() {
 
     const unsigned int center_x = SCREEN_WIDTH / 2;
     const unsigned int half_width = FFT_LINE_WIDTH;
-    const unsigned int waterfall_y = 55;
+    const unsigned int waterfall_y = CONTENT_Y_START + 17;
     const unsigned int waterfall_height = SCREEN_HEIGHT - waterfall_y - 5;
 
     // Right side waterfall
@@ -395,7 +395,7 @@ static void doSamplingFFT() {
 
     const unsigned int center_x = SCREEN_WIDTH / 2;
     const unsigned int half_width = min((int)(FFT_SAMPLES_SUB >> 1), (int)center_x);
-    const unsigned int waterfall_y = 55;
+    const unsigned int waterfall_y = CONTENT_Y_START + 17;
     const unsigned int waterfall_height = SCREEN_HEIGHT - waterfall_y - 5;
 
     int max_k = 0;
@@ -446,13 +446,13 @@ static void doSamplingFFT() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 static void updateDisplay() {
-    // Status bar below icon bar (Y=38-52)
-    tft.fillRect(0, 38, SCREEN_WIDTH, 14, HALEHOUND_BLACK);
+    // Status bar below icon bar
+    tft.fillRect(0, CONTENT_Y_START, SCREEN_WIDTH, 14, HALEHOUND_BLACK);
     tft.setTextSize(1);
 
     // Frequency
     tft.setTextColor(HALEHOUND_MAGENTA);
-    tft.setCursor(5, 40);
+    tft.setCursor(5, CONTENT_Y_START + 2);
     if (autoScanEnabled) {
         tft.setTextColor(autoScanPaused ? HALEHOUND_HOTPINK : HALEHOUND_BRIGHT);
         tft.print(frequencyList[autoScanIndex] / 1000000.0, 3);
@@ -467,7 +467,7 @@ static void updateDisplay() {
 
     // Signal info (if captured)
     if (signalCaptured) {
-        tft.setCursor(120, 40);
+        tft.setCursor(SCALE_X(120), CONTENT_Y_START + 2);
         tft.setTextColor(HALEHOUND_HOTPINK);
         tft.print("P");
         tft.print(capturedProtocol);
@@ -492,7 +492,7 @@ static void updateDisplay() {
         cc1101Unlock();
     }
 
-    tft.setCursor(190, 40);
+    tft.setCursor(SCALE_X(190), CONTENT_Y_START + 2);
     tft.setTextColor(rssi > -60 ? HALEHOUND_HOTPINK : HALEHOUND_VIOLET);
     tft.print(rssi);
 }
@@ -500,7 +500,7 @@ static void updateDisplay() {
 // Icon bar configuration - MATCHES ORIGINAL (5 icons)
 #define RA_ICON_SIZE 16
 #define RA_ICON_NUM 5
-static int raIconX[RA_ICON_NUM] = {90, 130, 170, 210, 10};
+static int raIconX[RA_ICON_NUM] = {SCALE_X(90), SCALE_X(130), SCALE_X(170), SCALE_X(210), 10};
 static const unsigned char* raIcons[RA_ICON_NUM] = {
     bitmap_icon_sort_up_plus,      // 0: Next freq
     bitmap_icon_sort_down_minus,   // 1: Prev freq
@@ -511,46 +511,51 @@ static const unsigned char* raIcons[RA_ICON_NUM] = {
 
 // Draw icon bar - MATCHES ORIGINAL HALEHOUND
 static void drawReplayUI() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_GUNMETAL);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_GUNMETAL);
     for (int i = 0; i < RA_ICON_NUM; i++) {
-        tft.drawBitmap(raIconX[i], 20, raIcons[i], RA_ICON_SIZE, RA_ICON_SIZE, HALEHOUND_MAGENTA);
+        tft.drawBitmap(raIconX[i], ICON_BAR_Y, raIcons[i], RA_ICON_SIZE, RA_ICON_SIZE, HALEHOUND_MAGENTA);
     }
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 static void drawUI() {
     // Separator below status bar
-    tft.drawLine(0, 53, SCREEN_WIDTH, 53, HALEHOUND_HOTPINK);
+    tft.drawLine(0, CONTENT_Y_START + 15, SCREEN_WIDTH, CONTENT_Y_START + 15, HALEHOUND_HOTPINK);
 
     // Skull splatter watermark - full screen
     tft.drawBitmap(0, 0, skull_bg_bitmap, SKULL_BG_WIDTH, SKULL_BG_HEIGHT, 0x0041);  // Dark cyan watermark
 }
 
 static void drawSignalCaptured() {
+    int panelX = SCALE_X(20);
+    int panelY = SCALE_Y(100);
+    int panelW = CONTENT_INNER_W;
+    int panelH = SCALE_Y(90);
+
     // Flash effect
-    tft.fillRect(20, 100, 200, 90, HALEHOUND_HOTPINK);
+    tft.fillRect(panelX, panelY, panelW, panelH, HALEHOUND_HOTPINK);
     delay(50);
-    tft.fillRect(20, 100, 200, 90, HALEHOUND_DARK);
+    tft.fillRect(panelX, panelY, panelW, panelH, HALEHOUND_DARK);
 
     // Draw capture panel with border
-    tft.drawRect(20, 100, 200, 90, HALEHOUND_HOTPINK);
-    tft.drawRect(21, 101, 198, 88, HALEHOUND_MAGENTA);
+    tft.drawRect(panelX, panelY, panelW, panelH, HALEHOUND_HOTPINK);
+    tft.drawRect(panelX + 1, panelY + 1, panelW - 2, panelH - 2, HALEHOUND_MAGENTA);
 
     // Header
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(55, 108);
+    tft.setCursor(SCALE_X(55), panelY + 8);
     tft.print(">> CAPTURED <<");
 
     // Value (larger, centered)
     tft.setTextColor(HALEHOUND_BRIGHT);
-    tft.setCursor(30, 125);
+    tft.setCursor(panelX + 10, panelY + 25);
     tft.print(capturedValue);
 
     // Details row
     tft.setTextColor(HALEHOUND_MAGENTA);
-    tft.setCursor(30, 145);
+    tft.setCursor(panelX + 10, panelY + 45);
     tft.print("P:");
     tft.setTextColor(HALEHOUND_BRIGHT);
     tft.print(capturedProtocol);
@@ -569,7 +574,7 @@ static void drawSignalCaptured() {
 
     // Action hint
     tft.setTextColor(HALEHOUND_VIOLET);
-    tft.setCursor(50, 175);
+    tft.setCursor(SCALE_X(50), panelY + panelH - 15);
     tft.print("TAP CENTER: REPLAY");
 }
 
@@ -883,7 +888,7 @@ void loop() {
     if (millis() - lastIconTap > 200) {
         uint16_t tx, ty;
         if (getTouchPoint(&tx, &ty)) {
-            if (ty >= 20 && ty <= 36) {
+            if (ty >= ICON_BAR_TOUCH_TOP && ty <= ICON_BAR_TOUCH_BOTTOM) {
                 for (int i = 0; i < RA_ICON_NUM; i++) {
                     if (tx >= raIconX[i] && tx < raIconX[i] + RA_ICON_SIZE) {
                         lastIconTap = millis();
@@ -899,12 +904,12 @@ void loop() {
                                     sendSignal();
                                 } else {
                                     // Flash "NO SIGNAL" feedback
-                                    tft.fillRect(60, 140, 120, 20, HALEHOUND_HOTPINK);
+                                    tft.fillRect(SCALE_X(60), SCALE_Y(140), SCALE_W(120), 20, HALEHOUND_HOTPINK);
                                     tft.setTextColor(HALEHOUND_BLACK);
-                                    tft.setCursor(70, 144);
+                                    tft.setCursor(SCALE_X(70), SCALE_Y(144));
                                     tft.print("NO SIGNAL");
                                     delay(300);
-                                    tft.fillRect(60, 140, 120, 20, HALEHOUND_BLACK);
+                                    tft.fillRect(SCALE_X(60), SCALE_Y(140), SCALE_W(120), 20, HALEHOUND_BLACK);
                                 }
                                 break;
                             case 3: // Profiles/Save
@@ -1233,11 +1238,11 @@ void sendSignal(unsigned long value, int bitLength, int protocol) {
         cc1101Unlock();
     }
 
-    tft.fillRect(0, 100, SCREEN_WIDTH, 80, HALEHOUND_BLACK);
+    tft.fillRect(0, SCALE_Y(100), SCREEN_WIDTH, SCALE_Y(80), HALEHOUND_BLACK);
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 120);
+    tft.setCursor(10, SCALE_Y(120));
     tft.print("[!] Sending (RMT)...");
-    tft.setCursor(10, 140);
+    tft.setCursor(10, SCALE_Y(140));
     tft.setTextColor(HALEHOUND_BRIGHT);
     tft.print(value);
 
@@ -1257,9 +1262,9 @@ void sendSignal(unsigned long value, int bitLength, int protocol) {
 
     delay(500);
 
-    tft.fillRect(0, 100, SCREEN_WIDTH, 80, HALEHOUND_BLACK);
+    tft.fillRect(0, SCALE_Y(100), SCREEN_WIDTH, SCALE_Y(80), HALEHOUND_BLACK);
     tft.setTextColor(HALEHOUND_MAGENTA);
-    tft.setCursor(10, 120);
+    tft.setCursor(10, SCALE_Y(120));
     tft.print("[+] Done!");
 
     // Switch back to RX
@@ -1456,17 +1461,17 @@ static const int frequencyCount = sizeof(frequencyListMHz) / sizeof(frequencyLis
 // Matches WLAN Jammer bar style exactly
 // ═══════════════════════════════════════════════════════════════════════════
 #define SJ_GRAPH_X 2
-#define SJ_GRAPH_Y 95
-#define SJ_GRAPH_WIDTH 236
-#define SJ_GRAPH_HEIGHT 140
+#define SJ_GRAPH_Y SCALE_Y(95)
+#define SJ_GRAPH_WIDTH GRAPH_FULL_W
+#define SJ_GRAPH_HEIGHT SCALE_Y(140)
 #define SJ_NUM_BARS 85       // 85 skinny bars - same density as WLAN Jammer
 // Each freq maps to a bar: barIdx = freqIndex * 85 / 17 = freqIndex * 5
 #define SJ_FREQ_TO_BAR(f) ((f) * SJ_NUM_BARS / 17)
 
 // Skull rows for jammer feedback - 3 rows of 8 = 24 skulls!
-#define SJ_SKULL_Y 250
+#define SJ_SKULL_Y SCALE_Y(250)
 #define SJ_SKULL_ROWS 3
-#define SJ_SKULL_ROW_SPACING 18
+#define SJ_SKULL_ROW_SPACING SCALE_Y(18)
 #define SJ_SKULL_NUM 8
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1517,7 +1522,7 @@ static const unsigned char* sjSkulls[] = {
 #define SJ_ICON_SIZE 16
 #define SJ_ICON_NUM 6
 // Layout: Back(10) | Toggle(60) | Prev(105) | Next(140) | Sweep(180) | Mode(215)
-static int sjIconX[SJ_ICON_NUM] = {10, 60, 105, 140, 180, 215};
+static int sjIconX[SJ_ICON_NUM] = {10, SCALE_X(60), SCALE_X(105), SCALE_X(140), SCALE_X(180), SCALE_X(215)};
 static const unsigned char* sjIcons[SJ_ICON_NUM] = {
     bitmap_icon_go_back,           // 0: Back
     bitmap_icon_start,             // 1: Toggle ON/OFF
@@ -1532,35 +1537,35 @@ static const unsigned char* sjIcons[SJ_ICON_NUM] = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 static void drawIconBar() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_GUNMETAL);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_GUNMETAL);
     for (int i = 0; i < SJ_ICON_NUM; i++) {
         uint16_t color = HALEHOUND_MAGENTA;
         // Highlight start icon when jamming
         if (i == 1 && jamming) color = HALEHOUND_HOTPINK;
         // Highlight sweep icon when active
         if (i == 3 && autoSweep) color = HALEHOUND_HOTPINK;
-        tft.drawBitmap(sjIconX[i], 20, sjIcons[i], SJ_ICON_SIZE, SJ_ICON_SIZE, color);
+        tft.drawBitmap(sjIconX[i], ICON_BAR_Y, sjIcons[i], SJ_ICON_SIZE, SJ_ICON_SIZE, color);
     }
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 static void drawHeader() {
-    tft.fillRect(0, 40, SCREEN_WIDTH, 52, TFT_BLACK);
+    tft.fillRect(0, CONTENT_Y_START, SCREEN_WIDTH, SCALE_Y(52), TFT_BLACK);
 
     // Title — Nosifer with glitch effect
-    drawGlitchText(55, "SUBGHZ JAM", &Nosifer_Regular10pt7b);
+    drawGlitchText(SCALE_Y(55), "SUBGHZ JAM", &Nosifer_Regular10pt7b);
 
     // Status
     if (jamming) {
-        drawGlitchStatus(72, "JAMMING", HALEHOUND_HOTPINK);
+        drawGlitchStatus(SCALE_Y(72), "JAMMING", HALEHOUND_HOTPINK);
     } else {
-        drawGlitchStatus(72, "STANDBY", HALEHOUND_GUNMETAL);
+        drawGlitchStatus(SCALE_Y(72), "STANDBY", HALEHOUND_GUNMETAL);
     }
 
     // Frequency info
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
-    tft.setCursor(10, 70);
+    tft.setCursor(10, SCALE_Y(70));
     if (autoSweep) {
         tft.print("Mode: SWEEP ALL (");
         tft.setTextColor(HALEHOUND_HOTPINK, TFT_BLACK);
@@ -1572,14 +1577,14 @@ static void drawHeader() {
     }
 
     // Jam mode and sweep indicator
-    tft.setCursor(10, 82);
+    tft.setCursor(10, SCALE_Y(82));
     tft.setTextColor(HALEHOUND_VIOLET, TFT_BLACK);
     tft.printf("Jam: %s", continuousMode ? "CARRIER" : "NOISE");
 
-    tft.setCursor(140, 82);
+    tft.setCursor(SCALE_X(140), SCALE_Y(82));
     tft.printf("Sweep: %s", autoSweep ? "AUTO" : "OFF");
 
-    tft.drawLine(0, 92, SCREEN_WIDTH, 92, HALEHOUND_HOTPINK);
+    tft.drawLine(0, SCALE_Y(92), SCREEN_WIDTH, SCALE_Y(92), HALEHOUND_HOTPINK);
 }
 
 // Forward declaration
@@ -1773,7 +1778,7 @@ static void drawFreqMarkers() {
 // Active frequency skull turns RED, adjacent skulls glow orange
 static void drawSkulls() {
     int skullStartX = 10;
-    int skullSpacing = 28;
+    int skullSpacing = SCALE_X(28);
 
     // Map current frequency index to skull position (0-7)
     // 17 frequencies spread across 8 skulls
@@ -2009,10 +2014,10 @@ void loop() {
     // ═══════════════════════════════════════════════════════════════════════
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        // Icon bar area (y=20-40)
-        if (ty >= 20 && ty <= 40) {
+        // Icon bar area
+        if (ty >= ICON_BAR_TOUCH_TOP && ty <= ICON_BAR_TOUCH_BOTTOM) {
             // Wait for touch release to prevent repeated triggers
-            while (isTouched()) { delay(10); }
+            waitForTouchRelease();
 
             // Back icon (x=10)
             if (tx >= 5 && tx <= 30) {
@@ -2224,7 +2229,7 @@ namespace SubBrute {
 // ═══════════════════════════════════════════════════════════════════════════
 #define SB_ICON_SIZE 16
 #define SB_ICON_NUM 5
-static int sbIconX[SB_ICON_NUM] = {50, 90, 130, 170, 10};
+static int sbIconX[SB_ICON_NUM] = {SCALE_X(50), SCALE_X(90), SCALE_X(130), SCALE_X(170), 10};
 static const unsigned char* sbIcons[SB_ICON_NUM] = {
     bitmap_icon_power,             // 0: Start/Stop
     bitmap_icon_sort_down_minus,   // 1: Prev protocol
@@ -2234,12 +2239,12 @@ static const unsigned char* sbIcons[SB_ICON_NUM] = {
 };
 
 static void drawIconBar() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
     for (int i = 0; i < SB_ICON_NUM; i++) {
-        tft.drawBitmap(sbIconX[i], 20, sbIcons[i], SB_ICON_SIZE, SB_ICON_SIZE, HALEHOUND_MAGENTA);
+        tft.drawBitmap(sbIconX[i], ICON_BAR_Y, sbIcons[i], SB_ICON_SIZE, SB_ICON_SIZE, HALEHOUND_MAGENTA);
     }
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2290,20 +2295,20 @@ static const ProtocolDef protocols[PROTO_COUNT] = {
 // ═══════════════════════════════════════════════════════════════════════════
 // SIMPLE TX INDICATOR - No complex animation, just shows activity
 // ═══════════════════════════════════════════════════════════════════════════
-#define EQ_Y            200  // Where the TX indicator area starts
+#define EQ_Y            SCALE_Y(200)  // Where the TX indicator area starts
 
 static unsigned long lastEqUpdate = 0;
 static int txPulse = 0;
 
 static void drawEqualizer() {
     // Simple TX activity bar at bottom
-    tft.fillRect(10, EQ_Y, 220, 20, HALEHOUND_BLACK);
-    tft.drawRoundRect(10, EQ_Y, 220, 20, 4, HALEHOUND_MAGENTA);
+    tft.fillRect(10, EQ_Y, CONTENT_INNER_W, 20, HALEHOUND_BLACK);
+    tft.drawRoundRect(10, EQ_Y, CONTENT_INNER_W, 20, 4, HALEHOUND_MAGENTA);
 
     if (txPulse > 0) {
-        int barW = min(txPulse * 2, 216);
+        int barW = min(txPulse * 2, CONTENT_INNER_W - 4);
         for (int i = 0; i < barW; i++) {
-            float ratio = (float)i / 216.0f;
+            float ratio = (float)i / (float)(CONTENT_INNER_W - 4);
             // Inline gradient: cyan to hot pink
             uint8_t r = (uint8_t)(ratio * 255);
             uint8_t g = 255 - (uint8_t)(ratio * (255 - 28));
@@ -2471,37 +2476,37 @@ static void drawMainUI() {
     const ProtocolDef& proto = protocols[currentProtocol];
 
     // Clear main area (below icon bar, above equalizer)
-    tft.fillRect(0, 38, SCREEN_WIDTH, EQ_Y - 38, TFT_BLACK);
+    tft.fillRect(0, CONTENT_Y_START, SCREEN_WIDTH, EQ_Y - CONTENT_Y_START, TFT_BLACK);
 
     // Glitch title - chromatic aberration effect
-    drawGlitchText(55, "BRUTE FORCE", &Nosifer_Regular10pt7b);
-    tft.drawLine(0, 58, SCREEN_WIDTH, 58, HALEHOUND_HOTPINK);
+    drawGlitchText(SCALE_Y(55), "BRUTE FORCE", &Nosifer_Regular10pt7b);
+    tft.drawLine(0, SCALE_Y(58), SCREEN_WIDTH, SCALE_Y(58), HALEHOUND_HOTPINK);
 
     // Protocol frame with rounded corners
-    tft.drawRoundRect(10, 60, 220, 55, 8, HALEHOUND_VIOLET);
-    tft.drawRoundRect(11, 61, 218, 53, 7, HALEHOUND_GUNMETAL);
+    tft.drawRoundRect(10, SCALE_Y(60), CONTENT_INNER_W, SCALE_Y(55), 8, HALEHOUND_VIOLET);
+    tft.drawRoundRect(11, SCALE_Y(61), CONTENT_INNER_W - 2, SCALE_Y(53), 7, HALEHOUND_GUNMETAL);
 
     // Protocol name - big and centered
-    tft.fillRect(15, 65, 210, 22, TFT_BLACK);
-    drawCenteredFreeFont(84, proto.name, HALEHOUND_MAGENTA, &FreeMonoBold12pt7b);
+    tft.fillRect(15, SCALE_Y(65), CONTENT_INNER_W - 10, SCALE_Y(22), TFT_BLACK);
+    drawCenteredFreeFont(SCALE_Y(84), proto.name, HALEHOUND_MAGENTA, &FreeMonoBold12pt7b);
 
     // Frequency below protocol name
     char freqBuf[16];
     snprintf(freqBuf, sizeof(freqBuf), "%.3f MHz", proto.frequency / 1000000.0);
-    tft.fillRect(15, 90, 210, 20, TFT_BLACK);
-    drawCenteredFreeFont(105, freqBuf, HALEHOUND_BRIGHT, &FreeMono9pt7b);
+    tft.fillRect(15, SCALE_Y(90), CONTENT_INNER_W - 10, SCALE_Y(20), TFT_BLACK);
+    drawCenteredFreeFont(SCALE_Y(105), freqBuf, HALEHOUND_BRIGHT, &FreeMono9pt7b);
 
     // Mode indicator
     tft.setFreeFont(NULL);
     tft.setTextSize(1);
-    tft.setCursor(15, 120);
+    tft.setCursor(15, SCALE_Y(120));
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
     tft.print("Mode: ");
     tft.setTextColor(HALEHOUND_HOTPINK, TFT_BLACK);
     tft.print(useDeBruijn ? "DE BRUIJN" : "SEQUENTIAL");
 
     // Bits info
-    tft.setCursor(140, 120);
+    tft.setCursor(SCALE_X(140), SCALE_Y(120));
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
     tft.print("Bits: ");
     tft.setTextColor(HALEHOUND_BRIGHT, TFT_BLACK);
@@ -2523,7 +2528,7 @@ static void updateDisplay() {
     }
 
     // Status area (below protocol frame)
-    tft.fillRect(0, 135, SCREEN_WIDTH, 60, TFT_BLACK);
+    tft.fillRect(0, SCALE_Y(135), SCREEN_WIDTH, SCALE_Y(60), TFT_BLACK);
 
     // Status text with pulsing effect when attacking
     static bool statusBlink = false;
@@ -2531,33 +2536,33 @@ static void updateDisplay() {
 
     if (running) {
         if (paused) {
-            drawCenteredFreeFont(155, "PAUSED", HALEHOUND_VIOLET, &FreeMonoBold12pt7b);
+            drawCenteredFreeFont(SCALE_Y(155), "PAUSED", HALEHOUND_VIOLET, &FreeMonoBold12pt7b);
         } else {
             uint16_t statusColor = statusBlink ? HALEHOUND_HOTPINK : tft.color565(200, 50, 100);
-            drawCenteredFreeFont(155, "ATTACKING", statusColor, &FreeMonoBold12pt7b);
+            drawCenteredFreeFont(SCALE_Y(155), "ATTACKING", statusColor, &FreeMonoBold12pt7b);
         }
 
         // Progress bar
-        drawGradientProgressBar(15, 165, 210, 16, progress);
+        drawGradientProgressBar(15, SCALE_Y(165), CONTENT_INNER_W - 10, 16, progress);
 
         // Stats line
         tft.setFreeFont(NULL);
         tft.setTextSize(1);
         tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
-        tft.setCursor(15, 185);
+        tft.setCursor(15, SCALE_Y(185));
         tft.printf("Code: %lu/%lu", currentCode, endCode);
 
         // Time elapsed
         unsigned long elapsed = (millis() - startTime) / 1000;
-        tft.setCursor(160, 185);
+        tft.setCursor(SCALE_X(160), SCALE_Y(185));
         tft.printf("Time: %lu:%02lu", elapsed / 60, elapsed % 60);
 
     } else {
-        drawCenteredFreeFont(155, "READY", HALEHOUND_BRIGHT, &FreeMonoBold12pt7b);
+        drawCenteredFreeFont(SCALE_Y(155), "READY", HALEHOUND_BRIGHT, &FreeMonoBold12pt7b);
         tft.setFreeFont(NULL);
         tft.setTextSize(1);
         tft.setTextColor(HALEHOUND_VIOLET, TFT_BLACK);
-        tft.setCursor(55, 175);
+        tft.setCursor(SCALE_X(55), SCALE_Y(175));
         tft.print("TAP TO START ATTACK");
     }
     // Equalizer is updated in main loop()
@@ -2771,8 +2776,8 @@ void loop() {
 
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        // Icon bar area (Y = 20-40)
-        if (ty >= 20 && ty <= 40) {
+        // Icon bar area
+        if (ty >= ICON_BAR_TOUCH_TOP && ty <= ICON_BAR_TOUCH_BOTTOM) {
             // Back icon (x=10, zone 0-35)
             if (tx < 35) {
                 running = false;
@@ -2787,22 +2792,22 @@ void loop() {
                 } else {
                     startAttack();
                 }
-                while (isTouched()) { delay(10); }
+                waitForTouchRelease();
             }
             // Down/Prev protocol (x=90, zone 75-115)
             if (tx >= 75 && tx < 115 && !running) {
                 prevProtocol();
-                while (isTouched()) { delay(10); }
+                waitForTouchRelease();
             }
             // Up/Next protocol (x=130, zone 115-155)
             if (tx >= 115 && tx < 155 && !running) {
                 nextProtocol();
-                while (isTouched()) { delay(10); }
+                waitForTouchRelease();
             }
             // Random/Toggle De Bruijn (x=170, zone 155+)
             if (tx >= 155 && !running) {
                 toggleDeBruijn();
-                while (isTouched()) { delay(10); }
+                waitForTouchRelease();
             }
         }
         // Center screen tap = toggle attack
@@ -2812,7 +2817,7 @@ void loop() {
             } else {
                 startAttack();
             }
-            while (isTouched()) { delay(10); }
+            waitForTouchRelease();
         }
     }
 
@@ -2853,7 +2858,7 @@ void loop() {
         uint16_t tx2, ty2;
         if (getTouchPoint(&tx2, &ty2)) {
             stopAttack();
-            while (isTouched()) { delay(10); }
+            waitForTouchRelease();
             return;
         }
 
@@ -3041,7 +3046,7 @@ namespace SubAnalyzer {
 
 #define SA_ICON_SIZE 16
 #define SA_ICON_NUM 4
-static int saIconX[SA_ICON_NUM] = {130, 170, 210, 10};
+static int saIconX[SA_ICON_NUM] = {SCALE_X(130), SCALE_X(170), SCALE_X(210), 10};
 static const unsigned char* saIcons[SA_ICON_NUM] = {
     bitmap_icon_power,             // 0: Start/Stop
     bitmap_icon_undo,              // 1: Clear/Reset
@@ -3051,12 +3056,12 @@ static const unsigned char* saIcons[SA_ICON_NUM] = {
 
 // Draw icon bar
 static void drawAnalyzerUI() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_GUNMETAL);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_GUNMETAL);
     for (int i = 0; i < SA_ICON_NUM; i++) {
-        tft.drawBitmap(saIconX[i], 20, saIcons[i], SA_ICON_SIZE, SA_ICON_SIZE, HALEHOUND_MAGENTA);
+        tft.drawBitmap(saIconX[i], ICON_BAR_Y, saIcons[i], SA_ICON_SIZE, SA_ICON_SIZE, HALEHOUND_MAGENTA);
     }
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3107,20 +3112,20 @@ static const int frequencyCount = sizeof(frequencyListMHz) / sizeof(frequencyLis
 // ═══════════════════════════════════════════════════════════════════════════
 
 #define WF_X        2           // Left margin for drawing area
-#define WF_Y        38          // Waterfall top (below icon bar + 1px gap)
+#define WF_Y        CONTENT_Y_START    // Waterfall top (below icon bar + 1px gap)
 #define WF_WIDTH_MAX 316               // Max drawing width for arrays (320 - 4 for landscape)
 #define WF_WIDTH    (tft.width() - 4)  // Runtime drawing width (screen - 4px margins)
-#define WF_HEIGHT   150         // Waterfall rows of history
+#define WF_HEIGHT   SCALE_Y(150)       // Waterfall rows of history
 
-#define SEP_Y       188         // Hot pink separator line
+#define SEP_Y       (WF_Y + WF_HEIGHT) // Hot pink separator line
 
-#define LG_Y        190         // Line graph top
-#define LG_HEIGHT   78          // Line graph height (y=190 to y=267)
+#define LG_Y        (SEP_Y + 2)        // Line graph top
+#define LG_HEIGHT   SCALE_Y(78)        // Line graph height
 
-#define AXIS_Y      268         // X axis line position
-#define LABEL_Y     271         // Frequency label text Y
+#define AXIS_Y      (LG_Y + LG_HEIGHT) // X axis line position
+#define LABEL_Y     (AXIS_Y + 3)       // Frequency label text Y
 
-#define STATUS_Y    284         // Status text area
+#define STATUS_Y    (LABEL_Y + 13)     // Status text area
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA ARRAYS
@@ -3616,7 +3621,7 @@ void loop() {
     if (millis() - lastIconTap > 200) {
         uint16_t tx, ty;
         if (getTouchPoint(&tx, &ty)) {
-            if (ty >= 20 && ty <= 36) {
+            if (ty >= ICON_BAR_TOUCH_TOP && ty <= ICON_BAR_TOUCH_BOTTOM) {
                 for (int i = 0; i < SA_ICON_NUM; i++) {
                     if (tx >= saIconX[i] && tx < saIconX[i] + SA_ICON_SIZE) {
                         lastIconTap = millis();

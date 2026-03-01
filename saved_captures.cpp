@@ -34,7 +34,7 @@ namespace SavedCaptures {
 #define SC_DIR              "/eapol"
 #define SC_MAX_FILES        32
 #define SC_LIST_Y           74       // Top of file list area (below title+separator)
-#define SC_LIST_BOTTOM      292      // Bottom of file list area
+#define SC_LIST_BOTTOM      (SCREEN_HEIGHT - 28)      // Bottom of file list area
 #define SC_ROW_HEIGHT       24       // Height per file row
 #define SC_VISIBLE_ROWS     ((SC_LIST_BOTTOM - SC_LIST_Y) / SC_ROW_HEIGHT)  // ~7 rows
 #define SC_BLINK_MS         500
@@ -124,15 +124,15 @@ static void formatSize(uint32_t bytes, char* buf, int bufLen) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 static void drawSCIconBar() {
-    tft.fillRect(0, 20, tft.width(), 16, HALEHOUND_DARK);
-    tft.drawBitmap(10, 20, bitmap_icon_go_back, 16, 16, HALEHOUND_MAGENTA);
-    tft.drawLine(0, 36, tft.width(), 36, HALEHOUND_HOTPINK);
+    tft.fillRect(0, ICON_BAR_Y, tft.width(), ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawBitmap(10, ICON_BAR_Y, bitmap_icon_go_back, 16, 16, HALEHOUND_MAGENTA);
+    tft.drawLine(0, ICON_BAR_BOTTOM, tft.width(), ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 static bool isSCBackTapped() {
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        if (ty >= 20 && ty <= 36 && tx >= 10 && tx < 30) {
+        if (ty >= ICON_BAR_TOUCH_TOP && ty <= ICON_BAR_TOUCH_BOTTOM && tx >= 10 && tx < 30) {
             delay(150);
             return true;
         }
@@ -632,7 +632,7 @@ static void drawFileRow(int screenRow, int fileIdx, bool selected) {
     int y = SC_LIST_Y + screenRow * SC_ROW_HEIGHT;
 
     // Clear row
-    tft.fillRect(2, y, 236, SC_ROW_HEIGHT - 1, selected ? HALEHOUND_VIOLET : TFT_BLACK);
+    tft.fillRect(2, y, SCREEN_WIDTH - 4, SC_ROW_HEIGHT - 1, selected ? HALEHOUND_VIOLET : TFT_BLACK);
 
     if (fileIdx < 0 || fileIdx >= fileCount) return;
 
@@ -678,7 +678,7 @@ static void drawFileList() {
         } else {
             // Clear empty row
             int y = SC_LIST_Y + i * SC_ROW_HEIGHT;
-            tft.fillRect(2, y, 236, SC_ROW_HEIGHT - 1, TFT_BLACK);
+            tft.fillRect(2, y, SCREEN_WIDTH - 4, SC_ROW_HEIGHT - 1, TFT_BLACK);
         }
     }
 
@@ -756,8 +756,8 @@ static void drawDetailView() {
     tft.setTextSize(1);
 
     // Frame box
-    tft.drawRoundRect(10, 64, 220, 100, 4, HALEHOUND_VIOLET);
-    tft.drawRoundRect(11, 65, 218, 98, 4, HALEHOUND_VIOLET);
+    tft.drawRoundRect(10, 64, CONTENT_INNER_W, 100, 4, HALEHOUND_VIOLET);
+    tft.drawRoundRect(11, 65, CONTENT_INNER_W - 2, 98, 4, HALEHOUND_VIOLET);
 
     // Detail line 1
     tft.setTextColor(HALEHOUND_MAGENTA);
@@ -786,24 +786,28 @@ static void drawDetailView() {
 
     // Three action buttons: VIEW | SERIAL | DELETE
     // Row at y=180
+    int scBtnW = (SCREEN_WIDTH - 26) / 3;  // 3 buttons with gaps
+    int scBtn1X = 8;
+    int scBtn2X = scBtn1X + scBtnW + 3;
+    int scBtn3X = scBtn2X + scBtnW + 3;
     // VIEW button
-    tft.drawRoundRect(8, 180, 70, 32, 4, HALEHOUND_MAGENTA);
-    tft.drawRoundRect(9, 181, 68, 30, 4, HALEHOUND_MAGENTA);
+    tft.drawRoundRect(scBtn1X, 180, scBtnW, 32, 4, HALEHOUND_MAGENTA);
+    tft.drawRoundRect(scBtn1X + 1, 181, scBtnW - 2, 30, 4, HALEHOUND_MAGENTA);
     tft.setTextDatum(TC_DATUM);
     tft.setTextColor(HALEHOUND_MAGENTA);
-    tft.drawString("VIEW", 43, 190);
+    tft.drawString("VIEW", scBtn1X + scBtnW / 2, 190);
 
     // SERIAL button
-    tft.drawRoundRect(85, 180, 70, 32, 4, HALEHOUND_VIOLET);
-    tft.drawRoundRect(86, 181, 68, 30, 4, HALEHOUND_VIOLET);
+    tft.drawRoundRect(scBtn2X, 180, scBtnW, 32, 4, HALEHOUND_VIOLET);
+    tft.drawRoundRect(scBtn2X + 1, 181, scBtnW - 2, 30, 4, HALEHOUND_VIOLET);
     tft.setTextColor(HALEHOUND_VIOLET);
-    tft.drawString("SERIAL", 120, 190);
+    tft.drawString("SERIAL", scBtn2X + scBtnW / 2, 190);
 
     // DELETE button
-    tft.drawRoundRect(162, 180, 70, 32, 4, HALEHOUND_HOTPINK);
-    tft.drawRoundRect(163, 181, 68, 30, 4, HALEHOUND_HOTPINK);
+    tft.drawRoundRect(scBtn3X, 180, scBtnW, 32, 4, HALEHOUND_HOTPINK);
+    tft.drawRoundRect(scBtn3X + 1, 181, scBtnW - 2, 30, 4, HALEHOUND_HOTPINK);
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.drawString("DELETE", 197, 190);
+    tft.drawString("DELETE", scBtn3X + scBtnW / 2, 190);
 
     tft.setTextDatum(TL_DATUM);
 
@@ -818,8 +822,8 @@ static void drawDeleteConfirm() {
     if (selectedIndex < 0 || selectedIndex >= fileCount) return;
 
     // Overlay confirmation box
-    tft.fillRect(20, 120, 200, 80, TFT_BLACK);
-    tft.drawRoundRect(20, 120, 200, 80, 4, HALEHOUND_HOTPINK);
+    tft.fillRect(20, 120, SCREEN_WIDTH - 40, 80, TFT_BLACK);
+    tft.drawRoundRect(20, 120, SCREEN_WIDTH - 40, 80, 4, HALEHOUND_HOTPINK);
     tft.drawRoundRect(21, 121, 198, 78, 4, HALEHOUND_HOTPINK);
 
     tft.setTextDatum(TC_DATUM);
@@ -863,7 +867,7 @@ static void drawViewScreen() {
     drawGlitchTitle(75, "HASH DETAIL");
 
     // Frame box
-    tft.drawRoundRect(5, 82, 230, viewLineCount * 16 + 16, 4, HALEHOUND_VIOLET);
+    tft.drawRoundRect(5, 82, GRAPH_PADDED_W, viewLineCount * 16 + 16, 4, HALEHOUND_VIOLET);
 
     tft.setTextDatum(TL_DATUM);
     tft.setFreeFont(NULL);

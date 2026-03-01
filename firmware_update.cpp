@@ -24,9 +24,9 @@ extern TFT_eSPI tft;
 
 #define MAX_BIN_FILES       16
 #define FW_CHUNK_SIZE     4096
-#define FW_LIST_VISIBLE      5
-#define FW_ITEM_HEIGHT      30
-#define FW_LIST_Y_START     85
+#define FW_LIST_VISIBLE      ((SCREEN_HEIGHT > 320) ? 7 : 5)
+#define FW_ITEM_HEIGHT      SCALE_H(30)
+#define FW_LIST_Y_START     SCALE_Y(85)
 #define FW_MIN_SIZE     102400    // 100 KB minimum
 #define FW_MAX_SIZE    3145728    // 3 MB maximum (partition limit)
 #define ESP32_IMAGE_MAGIC  0xE9
@@ -182,6 +182,9 @@ static void drawFileList() {
     int visible = (binFileCount - scrollOffset);
     if (visible > FW_LIST_VISIBLE) visible = FW_LIST_VISIBLE;
 
+    int listItemW = SCREEN_WIDTH - 8;
+    int nameMaxChars = (SCREEN_WIDTH > 240) ? 36 : 27;
+
     for (int i = 0; i < visible; i++) {
         int fileIdx = scrollOffset + i;
         int y = FW_LIST_Y_START + i * FW_ITEM_HEIGHT;
@@ -190,9 +193,9 @@ static void drawFileList() {
 
         // Background
         if (isSelected) {
-            tft.fillRoundRect(4, y, 232, FW_ITEM_HEIGHT - 2, 4, HALEHOUND_MAGENTA);
+            tft.fillRoundRect(4, y, listItemW, FW_ITEM_HEIGHT - 2, 4, HALEHOUND_MAGENTA);
         } else {
-            tft.drawRoundRect(4, y, 232, FW_ITEM_HEIGHT - 2, 4, HALEHOUND_GUNMETAL);
+            tft.drawRoundRect(4, y, listItemW, FW_ITEM_HEIGHT - 2, 4, HALEHOUND_GUNMETAL);
         }
 
         // File name
@@ -200,9 +203,9 @@ static void drawFileList() {
         tft.setTextColor(isSelected ? TFT_BLACK : HALEHOUND_HOTPINK);
         tft.setCursor(10, y + 5);
         // Truncate filename to fit
-        char nameBuf[28];
-        strncpy(nameBuf, getFileName(binFiles[fileIdx]), 27);
-        nameBuf[27] = '\0';
+        char nameBuf[38];
+        strncpy(nameBuf, getFileName(binFiles[fileIdx]), nameMaxChars);
+        nameBuf[nameMaxChars] = '\0';
         tft.print(nameBuf);
 
         // File size
@@ -229,11 +232,15 @@ static void drawFileList() {
 }
 
 static void drawFlashButton(bool enabled) {
-    tft.fillRoundRect(50, 250, 140, 36, 8,
+    int btnW = SCALE_W(140);
+    int btnX = (SCREEN_WIDTH - btnW) / 2;
+    int btnY = SCREEN_HEIGHT - 70;
+    tft.fillRoundRect(btnX, btnY, btnW, 36, 8,
                       enabled ? TFT_GREEN : HALEHOUND_GUNMETAL);
     tft.setTextSize(2);
     tft.setTextColor(enabled ? TFT_BLACK : TFT_DARKGREY);
-    tft.setCursor(76, 258);
+    int textW = 5 * 12;  // "FLASH" = 5 chars
+    tft.setCursor(btnX + (btnW - textW) / 2, btnY + 8);
     tft.print("FLASH");
 }
 
@@ -242,13 +249,13 @@ static void drawFileSelectScreen() {
     drawStatusBar();
 
     // Icon bar - back only
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawBitmap(10, 20, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawBitmap(10, ICON_BAR_Y, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 
     // Glitch title
-    drawGlitchTitle(48, "UPDATE FW");
+    drawGlitchTitle(SCALE_Y(48), "UPDATE FW");
 
     // SD status line
     tft.setTextSize(1);
@@ -257,7 +264,7 @@ static void drawFileSelectScreen() {
     snprintf(statusBuf, sizeof(statusBuf), "SD: %d file%s found",
              binFileCount, binFileCount == 1 ? "" : "s");
     int sw = strlen(statusBuf) * 6;
-    tft.setCursor((tft.width() - sw) / 2, 68);
+    tft.setCursor((SCREEN_WIDTH - sw) / 2, SCALE_Y(68));
     tft.print(statusBuf);
 
     // File list
@@ -269,7 +276,7 @@ static void drawFileSelectScreen() {
     // Hint text
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_GUNMETAL);
-    tft.setCursor(52, 298);
+    tft.setCursor(SCALE_X(52), SCREEN_HEIGHT - 22);
     tft.print("Select a .bin file");
 }
 
@@ -278,8 +285,8 @@ static int handleFileSelectTouch() {
     uint16_t tx, ty;
     if (!getTouchPoint(&tx, &ty)) return 0;
 
-    // Back icon (y=20-36, x=10-26)
-    if (ty >= 20 && ty <= 36 && tx >= 10 && tx < 26) {
+    // Back icon
+    if (ty >= (ICON_BAR_Y - 2) && ty <= (ICON_BAR_BOTTOM + 4) && tx >= 10 && tx < 26) {
         delay(150);
         return -1;
     }
@@ -315,8 +322,11 @@ static int handleFileSelectTouch() {
         return 0;
     }
 
-    // FLASH button (y=250-286, x=50-190)
-    if (ty >= 250 && ty <= 286 && tx >= 50 && tx <= 190 && selectedFileIndex >= 0) {
+    // FLASH button
+    int flashBtnW = SCALE_W(140);
+    int flashBtnX = (SCREEN_WIDTH - flashBtnW) / 2;
+    int flashBtnY = SCREEN_HEIGHT - 70;
+    if (ty >= flashBtnY && ty <= (flashBtnY + 36) && tx >= flashBtnX && tx <= (flashBtnX + flashBtnW) && selectedFileIndex >= 0) {
         delay(150);
         return 1;
     }
@@ -333,55 +343,60 @@ static void drawConfirmScreen() {
     drawStatusBar();
 
     // Icon bar
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 
     // Glitch title
-    drawGlitchTitle(48, "CONFIRM");
+    drawGlitchTitle(SCALE_Y(48), "CONFIRM");
 
     // File name
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 85);
+    tft.setCursor(10, SCALE_Y(85));
     tft.print("File:");
     tft.setTextColor(TFT_WHITE);
-    tft.setCursor(10, 98);
-    char nameBuf[36];
-    strncpy(nameBuf, getFileName(binFiles[selectedFileIndex]), 35);
-    nameBuf[35] = '\0';
+    tft.setCursor(10, SCALE_Y(98));
+    int nameMax = (SCREEN_WIDTH > 240) ? 45 : 35;
+    char nameBuf[46];
+    strncpy(nameBuf, getFileName(binFiles[selectedFileIndex]), nameMax);
+    nameBuf[nameMax] = '\0';
     tft.print(nameBuf);
 
     // File size
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 115);
+    tft.setCursor(10, SCALE_Y(115));
     tft.print("Size:");
     char sizeBuf[16];
     formatFileSize(binSizes[selectedFileIndex], sizeBuf, sizeof(sizeBuf));
     tft.setTextColor(TFT_WHITE);
-    tft.setCursor(42, 115);
+    tft.setCursor(42, SCALE_Y(115));
     tft.print(sizeBuf);
 
     // Warning
     tft.setTextColor(TFT_RED);
     tft.setTextSize(1);
-    tft.setCursor(40, 140);
+    tft.setCursor(SCALE_X(40), SCALE_Y(140));
     tft.print("This will overwrite");
-    tft.setCursor(40, 155);
+    tft.setCursor(SCALE_X(40), SCALE_Y(155));
     tft.print("current firmware!");
 
     // CANCEL button (red)
-    tft.fillRoundRect(15, 185, 95, 35, 6, TFT_RED);
+    int btnW = (SCREEN_WIDTH - 30) / 2;
+    int cancelX = 10;
+    int flashX = SCREEN_WIDTH / 2 + 5;
+    int btnY = SCALE_Y(185);
+    tft.fillRoundRect(cancelX, btnY, btnW, 35, 6, TFT_RED);
     tft.setTextSize(2);
     tft.setTextColor(TFT_WHITE);
-    tft.setCursor(24, 193);
+    tft.setCursor(cancelX + (btnW - 72) / 2, btnY + 8);
     tft.print("CANCEL");
 
     // FLASH button (green)
-    tft.fillRoundRect(130, 185, 95, 35, 6, TFT_GREEN);
+    tft.fillRoundRect(flashX, btnY, btnW, 35, 6, TFT_GREEN);
     tft.setTextSize(2);
     tft.setTextColor(TFT_BLACK);
-    tft.setCursor(142, 193);
+    tft.setCursor(flashX + (btnW - 60) / 2, btnY + 8);
     tft.print("FLASH");
 }
 
@@ -390,14 +405,19 @@ static int handleConfirmTouch() {
     uint16_t tx, ty;
     if (!getTouchPoint(&tx, &ty)) return 0;
 
-    // CANCEL button (y=185-220, x=15-110)
-    if (ty >= 185 && ty <= 220 && tx >= 15 && tx <= 110) {
+    int btnW = (SCREEN_WIDTH - 30) / 2;
+    int cancelX = 10;
+    int flashX = SCREEN_WIDTH / 2 + 5;
+    int btnY = SCALE_Y(185);
+
+    // CANCEL button
+    if (ty >= btnY && ty <= (btnY + 35) && tx >= cancelX && tx <= (cancelX + btnW)) {
         delay(150);
         return -1;
     }
 
-    // FLASH button (y=185-220, x=130-225)
-    if (ty >= 185 && ty <= 220 && tx >= 130 && tx <= 225) {
+    // FLASH button
+    if (ty >= btnY && ty <= (btnY + 35) && tx >= flashX && tx <= (flashX + btnW)) {
         delay(150);
         return 1;
     }
@@ -414,32 +434,33 @@ static void drawProgressScreen(const char* fileName) {
     drawStatusBar();
 
     // Icon bar (no back - can't cancel mid-flash)
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 
     // Glitch title
-    drawGlitchTitle(48, "FLASHING");
+    drawGlitchTitle(SCALE_Y(48), "FLASHING");
 
     // File name
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 85);
+    tft.setCursor(10, SCALE_Y(85));
     tft.print(fileName);
 
     // Progress bar outline
-    tft.drawRect(19, 115, 202, 22, HALEHOUND_MAGENTA);
+    int barW = SCREEN_WIDTH - 38;
+    tft.drawRect(19, SCALE_Y(115), barW + 2, 22, HALEHOUND_MAGENTA);
 
     // Percentage
     tft.setTextSize(2);
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
-    tft.setCursor(100, 145);
+    tft.setCursor(SCALE_X(100), SCALE_Y(145));
     tft.print("0%");
 
     // Warning
     tft.setTextSize(1);
     tft.setTextColor(TFT_RED);
-    tft.setCursor(44, 200);
+    tft.setCursor(SCALE_X(44), SCALE_Y(200));
     tft.print("DO NOT POWER OFF!");
 }
 
@@ -447,20 +468,22 @@ static void updateProgressBar(int pct) {
     if (pct < 0) pct = 0;
     if (pct > 100) pct = 100;
 
-    // Fill bar (200px max width)
-    int fillW = (200 * pct) / 100;
+    // Fill bar (dynamic max width)
+    int barW = SCREEN_WIDTH - 38;
+    int fillW = (barW * pct) / 100;
     if (fillW > 0) {
-        tft.fillRect(20, 116, fillW, 20, TFT_GREEN);
+        tft.fillRect(20, SCALE_Y(115) + 1, fillW, 20, TFT_GREEN);
     }
 
     // Percentage text
-    tft.fillRect(88, 145, 64, 16, TFT_BLACK);
+    int pctY = SCALE_Y(145);
+    tft.fillRect(SCREEN_WIDTH / 2 - 32, pctY, 64, 16, TFT_BLACK);
     tft.setTextSize(2);
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
     char buf[8];
     snprintf(buf, sizeof(buf), "%d%%", pct);
     int tw = strlen(buf) * 12;
-    tft.setCursor((tft.width() - tw) / 2, 145);
+    tft.setCursor((SCREEN_WIDTH - tw) / 2, pctY);
     tft.print(buf);
 }
 
@@ -539,26 +562,26 @@ static void drawSuccessScreen() {
     tft.fillScreen(TFT_BLACK);
     drawStatusBar();
 
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 
-    drawGlitchTitle(48, "COMPLETE");
+    drawGlitchTitle(SCALE_Y(48), "COMPLETE");
 
     tft.setTextSize(1);
     tft.setTextColor(TFT_GREEN);
-    tft.setCursor(52, 100);
+    tft.setCursor(SCALE_X(52), SCALE_Y(100));
     tft.print("UPDATE COMPLETE!");
 
     // Countdown and reboot
     for (int i = 3; i >= 1; i--) {
-        tft.fillRect(40, 140, 160, 20, TFT_BLACK);
+        tft.fillRect(40, SCALE_Y(140), SCALE_W(160), 20, TFT_BLACK);
         tft.setTextSize(1);
         tft.setTextColor(HALEHOUND_HOTPINK, TFT_BLACK);
         char buf[32];
         snprintf(buf, sizeof(buf), "Rebooting in %d...", i);
         int tw = strlen(buf) * 6;
-        tft.setCursor((tft.width() - tw) / 2, 145);
+        tft.setCursor((SCREEN_WIDTH - tw) / 2, SCALE_Y(145));
         tft.print(buf);
         delay(1000);
     }
@@ -571,27 +594,31 @@ static void drawErrorScreen(const char* msg) {
     drawStatusBar();
 
     // Icon bar with back
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawBitmap(10, 20, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawBitmap(10, ICON_BAR_Y, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 
-    drawGlitchTitle(48, "ERROR");
+    drawGlitchTitle(SCALE_Y(48), "ERROR");
 
     tft.setTextSize(1);
     tft.setTextColor(TFT_RED);
-    tft.setCursor(10, 100);
+    tft.setCursor(10, SCALE_Y(100));
     tft.print("Update failed:");
 
     tft.setTextColor(TFT_WHITE);
-    tft.setCursor(10, 118);
+    tft.setCursor(10, SCALE_Y(118));
     tft.print(msg);
 
     // BACK button
-    tft.fillRoundRect(60, 200, 120, 36, 8, TFT_RED);
+    int btnW = SCALE_W(120);
+    int btnX = (SCREEN_WIDTH - btnW) / 2;
+    int btnY = SCALE_Y(200);
+    tft.fillRoundRect(btnX, btnY, btnW, 36, 8, TFT_RED);
     tft.setTextSize(2);
     tft.setTextColor(TFT_WHITE);
-    tft.setCursor(84, 208);
+    int textW = 4 * 12;  // "BACK" = 4 chars
+    tft.setCursor(btnX + (btnW - textW) / 2, btnY + 8);
     tft.print("BACK");
 }
 
@@ -603,12 +630,15 @@ static void waitForErrorBack() {
         uint16_t tx, ty;
         if (getTouchPoint(&tx, &ty)) {
             // Back icon
-            if (ty >= 20 && ty <= 36 && tx >= 10 && tx < 26) {
+            if (ty >= (ICON_BAR_Y - 2) && ty <= (ICON_BAR_BOTTOM + 4) && tx >= 10 && tx < 26) {
                 delay(150);
                 return;
             }
-            // BACK button (y=200-236, x=60-180)
-            if (ty >= 200 && ty <= 236 && tx >= 60 && tx <= 180) {
+            // BACK button
+            int btnW = SCALE_W(120);
+            int btnX = (SCREEN_WIDTH - btnW) / 2;
+            int btnY = SCALE_Y(200);
+            if (ty >= btnY && ty <= (btnY + 36) && tx >= btnX && tx <= (btnX + btnW)) {
                 delay(150);
                 return;
             }
@@ -627,20 +657,20 @@ static void drawNoSDScreen() {
     tft.fillScreen(TFT_BLACK);
     drawStatusBar();
 
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawBitmap(10, 20, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawBitmap(10, ICON_BAR_Y, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 
-    drawGlitchTitle(48, "UPDATE FW");
+    drawGlitchTitle(SCALE_Y(48), "UPDATE FW");
 
     tft.setTextSize(1);
     tft.setTextColor(TFT_RED);
-    tft.setCursor(72, 120);
+    tft.setCursor(SCALE_X(72), SCALE_Y(120));
     tft.print("NO SD CARD");
 
     tft.setTextColor(HALEHOUND_GUNMETAL);
-    tft.setCursor(28, 150);
+    tft.setCursor(SCALE_X(28), SCALE_Y(150));
     tft.print("Insert SD card and retry");
 }
 
@@ -648,22 +678,22 @@ static void drawNoFilesScreen() {
     tft.fillScreen(TFT_BLACK);
     drawStatusBar();
 
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawBitmap(10, 20, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawBitmap(10, ICON_BAR_Y, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 
-    drawGlitchTitle(48, "UPDATE FW");
+    drawGlitchTitle(SCALE_Y(48), "UPDATE FW");
 
     tft.setTextSize(1);
     tft.setTextColor(TFT_RED);
-    tft.setCursor(60, 120);
+    tft.setCursor(SCALE_X(60), SCALE_Y(120));
     tft.print("NO .BIN FILES");
 
     tft.setTextColor(HALEHOUND_GUNMETAL);
-    tft.setCursor(12, 150);
+    tft.setCursor(12, SCALE_Y(150));
     tft.print("Place firmware.bin on SD");
-    tft.setCursor(12, 165);
+    tft.setCursor(12, SCALE_Y(165));
     tft.print("root or /firmware/ folder");
 }
 
@@ -673,7 +703,7 @@ static void waitForBackTap() {
 
         uint16_t tx, ty;
         if (getTouchPoint(&tx, &ty)) {
-            if (ty >= 20 && ty <= 36 && tx >= 10 && tx < 26) {
+            if (ty >= (ICON_BAR_Y - 2) && ty <= (ICON_BAR_BOTTOM + 4) && tx >= 10 && tx < 26) {
                 delay(150);
                 return;
             }

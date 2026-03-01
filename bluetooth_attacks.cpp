@@ -408,7 +408,7 @@ static volatile bool logDirty = false;  // Core 0 sets via addLogEntry, Core 1 r
 // SKULL ANIMATION - 2 rows of 8 (matches BLE Jammer pattern)
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define SP_SKULL_Y 272
+#define SP_SKULL_Y (SCREEN_HEIGHT - 48)
 #define SP_SKULL_ROWS 1
 #define SP_SKULL_ROW_SPACING 15
 #define SP_SKULL_NUM 8
@@ -630,9 +630,9 @@ static void getSwiftPairPayload(BLEAdvertisementData& advData, int idx) {
 // Activity EQ bars — 16 skinny bars that bounce with broadcast activity
 #define SP_EQ_BARS 16
 #define SP_EQ_HEIGHT 22
-#define SP_EQ_Y 247       // Just above skulls
+#define SP_EQ_Y (SCREEN_HEIGHT - 73)       // Just above skulls
 #define SP_EQ_X 12
-#define SP_EQ_WIDTH 216
+#define SP_EQ_WIDTH (SCREEN_WIDTH - 24)
 static uint8_t eqHeat[SP_EQ_BARS] = {0};
 
 // Pulsing status blink state
@@ -661,14 +661,14 @@ static uint16_t spGradientColor(float ratio) {
 }
 
 static void drawIconBar() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_GUNMETAL);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_GUNMETAL);
     for (int i = 0; i < SP_ICON_NUM; i++) {
         uint16_t color = HALEHOUND_MAGENTA;
         if (i == 1 && spamming) color = HALEHOUND_HOTPINK;  // Toggle icon hot when active
-        tft.drawBitmap(spIconX[i], 20, spIcons[i], SP_ICON_SIZE, SP_ICON_SIZE, color);
+        tft.drawBitmap(spIconX[i], ICON_BAR_Y, spIcons[i], SP_ICON_SIZE, SP_ICON_SIZE, color);
     }
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 static void drawHeader() {
@@ -678,7 +678,7 @@ static void drawHeader() {
     tft.drawBitmap(180, 40, bitmap_icon_skull_bluetooth, 16, 16, tft.color565(0, 30, 40));
 
     // Title — Nosifer with glitch effect
-    drawGlitchText(60, "BLE SPOOFER", &Nosifer_Regular10pt7b);
+    drawGlitchText(SCALE_Y(60), "BLE SPOOFER", &Nosifer_Regular10pt7b);
 
     // Status — pulsing when active
     tft.setTextSize(1);
@@ -695,8 +695,8 @@ static void drawHeader() {
     }
 
     // Mode — in rounded double-border frame
-    tft.drawRoundRect(5, 74, 230, 16, 3, HALEHOUND_VIOLET);
-    tft.drawRoundRect(6, 75, 228, 14, 2, HALEHOUND_GUNMETAL);
+    tft.drawRoundRect(5, 74, GRAPH_PADDED_W, 16, 3, HALEHOUND_VIOLET);
+    tft.drawRoundRect(6, 75, GRAPH_PADDED_W - 2, 14, 2, HALEHOUND_GUNMETAL);
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
     tft.setCursor(10, 78);
     tft.printf(" %s", MODE_NAMES[currentMode]);
@@ -843,7 +843,7 @@ static void drawEqualizer() {
 
 static void drawSkulls() {
     int skullStartX = 10;
-    int skullSpacing = 28;
+    int skullSpacing = (SCREEN_WIDTH - 20) / SP_SKULL_NUM;
 
     for (int row = 0; row < SP_SKULL_ROWS; row++) {
         int rowY = SP_SKULL_Y + (row * SP_SKULL_ROW_SPACING);
@@ -908,13 +908,13 @@ static void drawSkulls() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 static void drawCounter() {
-    int counterY = 290;
+    int counterY = SCREEN_HEIGHT - 30;
     tft.fillRect(0, counterY, SCREEN_WIDTH, 25, TFT_BLACK);
 
     // Gradient bar showing activity (fills based on rate, max at 30/s)
     int barX = 10;
     int barY = counterY + 2;
-    int barW = 140;
+    int barW = SCALE_W(140);
     int barH = 10;
 
     // Border
@@ -943,12 +943,12 @@ static void drawCounter() {
 
     // Rate display to the right
     tft.setTextColor(spamming ? HALEHOUND_HOTPINK : HALEHOUND_GUNMETAL, TFT_BLACK);
-    tft.setCursor(160, counterY + 3);
+    tft.setCursor(SCALE_X(160), counterY + 3);
     tft.printf("%d pkt/s", currentRate);
 
     // Small skull icon next to rate when active
     if (spamming) {
-        tft.drawBitmap(220, counterY + 1, bitmap_icon_skull_bluetooth, 16, 16, HALEHOUND_HOTPINK);
+        tft.drawBitmap(SCALE_X(220), counterY + 1, bitmap_icon_skull_bluetooth, 16, 16, HALEHOUND_HOTPINK);
     }
 }
 
@@ -1289,10 +1289,10 @@ void loop() {
     // ═══════════════════════════════════════════════════════════════════════
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        // Icon bar area (y=20-40)
-        if (ty >= 20 && ty <= 40) {
+        // Icon bar area
+        if (ty >= ICON_BAR_Y && ty <= (ICON_BAR_BOTTOM + 4)) {
             // Wait for touch release to prevent repeated triggers
-            while (isTouched()) { delay(10); }
+            waitForTouchRelease();
 
             // Back icon (x=10)
             if (tx >= 5 && tx <= 30) {
@@ -1508,7 +1508,7 @@ static volatile bool bcnTaskRunning = false;
 #define BCN_LOG_MAX_LINES 8
 #define BCN_LOG_LINE_HEIGHT 13
 #define BCN_LOG_START_Y 115
-#define BCN_LOG_END_Y 230
+#define BCN_LOG_END_Y (SCREEN_HEIGHT - 90)
 
 static char bcnLogLines[BCN_LOG_MAX_LINES][42];
 static uint16_t bcnLogColors[BCN_LOG_MAX_LINES];
@@ -1584,21 +1584,21 @@ static void bcnDrawLog() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 static void bcnDrawIconBar() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_GUNMETAL);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_GUNMETAL);
     for (int i = 0; i < BCN_ICON_NUM; i++) {
         uint16_t color = HALEHOUND_MAGENTA;
         if (i == 1 && beaconing) color = HALEHOUND_HOTPINK;
-        tft.drawBitmap(bcnIconX[i], 20, bcnIcons[i], BCN_ICON_SIZE, BCN_ICON_SIZE, color);
+        tft.drawBitmap(bcnIconX[i], ICON_BAR_Y, bcnIcons[i], BCN_ICON_SIZE, BCN_ICON_SIZE, color);
     }
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 static void bcnDrawHeader() {
     tft.fillRect(0, 40, SCREEN_WIDTH, 72, TFT_BLACK);
 
     // Title — Nosifer with glitch effect
-    drawGlitchText(60, "BLE BEACON", &Nosifer_Regular10pt7b);
+    drawGlitchText(SCALE_Y(60), "BLE BEACON", &Nosifer_Regular10pt7b);
 
     // Status
     tft.setTextSize(1);
@@ -1613,8 +1613,8 @@ static void bcnDrawHeader() {
     }
 
     // Mode in framed bar
-    tft.drawRoundRect(5, 82, 230, 16, 3, HALEHOUND_VIOLET);
-    tft.drawRoundRect(6, 83, 228, 14, 2, HALEHOUND_GUNMETAL);
+    tft.drawRoundRect(5, 82, GRAPH_PADDED_W, 16, 3, HALEHOUND_VIOLET);
+    tft.drawRoundRect(6, 83, GRAPH_PADDED_W - 2, 14, 2, HALEHOUND_GUNMETAL);
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
     tft.setCursor(10, 86);
     tft.printf(" %s", BCN_MODE_NAMES[currentMode]);
@@ -1678,13 +1678,13 @@ static void bcnDrawRate() {
 }
 
 static void bcnDrawCounter() {
-    int counterY = 232;
+    int counterY = SCREEN_HEIGHT - 88;
     tft.fillRect(0, counterY, SCREEN_WIDTH, 20, TFT_BLACK);
 
     // Gradient bar
     int barX = 10;
     int barY = counterY + 2;
-    int barW = 140;
+    int barW = SCALE_W(140);
     int barH = 10;
 
     tft.drawRoundRect(barX - 1, barY - 1, barW + 2, barH + 2, 2, HALEHOUND_MAGENTA);
@@ -1715,7 +1715,7 @@ static void bcnDrawCounter() {
 
     // Rate on right
     tft.setTextColor(beaconing ? HALEHOUND_HOTPINK : HALEHOUND_GUNMETAL, TFT_BLACK);
-    tft.setCursor(160, counterY + 3);
+    tft.setCursor(SCALE_X(160), counterY + 3);
     tft.printf("%d bcn/s", currentRate);
 }
 
@@ -1729,9 +1729,9 @@ static const unsigned char* bcnSkulls[8] = {
 };
 
 static void bcnDrawSkulls() {
-    int skullY = 272;
+    int skullY = SCREEN_HEIGHT - 48;
     int skullStartX = 10;
-    int skullSpacing = 28;
+    int skullSpacing = (SCREEN_WIDTH - 20) / 8;
 
     for (int i = 0; i < 8; i++) {
         int x = skullStartX + (i * skullSpacing);
@@ -2159,7 +2159,7 @@ void loop() {
     if (getTouchPoint(&tx, &ty)) {
         // Icon bar area (y=20-40)
         if (ty >= 20 && ty <= 40) {
-            while (isTouched()) { delay(10); }
+            waitForTouchRelease();
 
             // Back icon (x=10)
             if (tx >= 5 && tx <= 30) {
@@ -2261,15 +2261,15 @@ static int deviceCount = 0;
 #define BSCAN_ICON_SIZE 16
 #define BSCAN_ICON_NUM 2
 static int bscanIconX[BSCAN_ICON_NUM] = {210, 10};
-static int bscanIconY = 20;
+static int bscanIconY = ICON_BAR_Y;
 
 // Draw icon bar - MATCHES ORIGINAL ESP32-DIV
 static void drawBleScanUI() {
-    tft.drawLine(0, 19, tft.width(), 19, HALEHOUND_MAGENTA);
-    tft.fillRect(140, 20, SCREEN_WIDTH - 140, 16, HALEHOUND_GUNMETAL);
+    tft.drawLine(0, ICON_BAR_TOP, tft.width(), ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(SCALE_X(140), ICON_BAR_Y, SCREEN_WIDTH - SCALE_X(140), ICON_BAR_H, HALEHOUND_GUNMETAL);
     tft.drawBitmap(bscanIconX[0], bscanIconY, bitmap_icon_undo, BSCAN_ICON_SIZE, BSCAN_ICON_SIZE, HALEHOUND_MAGENTA);
     tft.drawBitmap(bscanIconX[1], bscanIconY, bitmap_icon_go_back, BSCAN_ICON_SIZE, BSCAN_ICON_SIZE, HALEHOUND_MAGENTA);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 // Draw device list
@@ -2442,7 +2442,7 @@ void loop() {
     if (millis() - lastIconTap > 200) {
         uint16_t tx, ty;
         if (getTouchPoint(&tx, &ty)) {
-            if (ty >= 20 && ty <= 36) {
+            if (ty >= ICON_BAR_Y && ty <= ICON_BAR_BOTTOM) {
                 // Back icon at x=10-26
                 if (tx >= 10 && tx < 26) {
                     if (detailView) {
@@ -3195,12 +3195,12 @@ static const BjJamMode bjModes[] = {
 // ═══════════════════════════════════════════════════════════════════════════
 #define BJ_GRAPH_X      2
 #define BJ_GRAPH_Y      155
-#define BJ_GRAPH_WIDTH  236
+#define BJ_GRAPH_WIDTH  GRAPH_FULL_W
 #define BJ_GRAPH_HEIGHT 106
 #define BJ_NUM_BARS     85
 
 // Skull rows - 3 rows of 8 = 24 skulls (matches SubGHz Jammer)
-#define BJ_SKULL_Y           265
+#define BJ_SKULL_Y           (SCREEN_HEIGHT - 55)
 #define BJ_SKULL_ROWS        3
 #define BJ_SKULL_ROW_SPACING 18
 #define BJ_SKULL_NUM         8
@@ -3358,15 +3358,15 @@ static bool bjIsAdvChannel(int ch) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 static void drawIconBar() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_GUNMETAL);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_GUNMETAL);
     for (int i = 0; i < BJ_ICON_NUM; i++) {
         uint16_t color = HALEHOUND_MAGENTA;
         if (i == 1 && jamming) color = HALEHOUND_HOTPINK;   // Toggle icon hot when jamming
         if (i == 4 && jamming) color = HALEHOUND_HOTPINK;  // Antenna icon hot when jamming
-        tft.drawBitmap(bjIconX[i], 20, bjIcons[i], BJ_ICON_SIZE, BJ_ICON_SIZE, color);
+        tft.drawBitmap(bjIconX[i], ICON_BAR_Y, bjIcons[i], BJ_ICON_SIZE, BJ_ICON_SIZE, color);
     }
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 // Helper to draw centered FreeFont text (Proto Kill style)
@@ -3420,15 +3420,15 @@ static void drawBjMainUI() {
     tft.drawLine(0, 56, SCREEN_WIDTH, 56, HALEHOUND_HOTPINK);
 
     // Rounded frame for main content (Proto Kill style)
-    tft.drawRoundRect(10, 60, 220, 70, 8, HALEHOUND_VIOLET);
-    tft.drawRoundRect(11, 61, 218, 68, 7, HALEHOUND_GUNMETAL);
+    tft.drawRoundRect(10, 60, CONTENT_INNER_W, 70, 8, HALEHOUND_VIOLET);
+    tft.drawRoundRect(11, 61, CONTENT_INNER_W - 2, 68, 7, HALEHOUND_GUNMETAL);
 
     // Mode Name - Nosifer18pt with glitch effect
-    tft.fillRect(15, 65, 210, 30, TFT_BLACK);
+    tft.fillRect(15, 65, SCREEN_WIDTH - 30, 30, TFT_BLACK);
     bjDrawGlitchText(90, BJ_MODE_DISPLAY[currentMode], &Nosifer_Regular12pt7b);
 
     // Status - Nosifer12pt
-    tft.fillRect(15, 100, 210, 25, TFT_BLACK);
+    tft.fillRect(15, 100, SCREEN_WIDTH - 30, 25, TFT_BLACK);
     if (jamming) {
         bjDrawFreeFont(120, "JAMMING", HALEHOUND_HOTPINK, &Nosifer_Regular10pt7b);
     } else {
@@ -3437,16 +3437,16 @@ static void drawBjMainUI() {
 
     // Stats line - default font
     tft.setFreeFont(NULL);
-    tft.fillRect(0, 135, SCREEN_WIDTH, 15, TFT_BLACK);
+    tft.fillRect(0, SCALE_Y(135), SCREEN_WIDTH, 15, TFT_BLACK);
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
-    tft.setCursor(10, 140);
+    tft.setCursor(10, SCALE_Y(140));
     tft.printf("CH:%03d", currentNRFChannel);
     tft.setTextColor(jamming ? HALEHOUND_HOTPINK : HALEHOUND_VIOLET, TFT_BLACK);
-    tft.setCursor(80, 140);
+    tft.setCursor(SCALE_X(80), SCALE_Y(140));
     tft.printf("CH#:%d", bjModes[currentMode].count);
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
-    tft.setCursor(170, 140);
+    tft.setCursor(SCALE_X(170), SCALE_Y(140));
     tft.printf("HITS:%d", bjHitCount);
 
     // Separator before equalizer
@@ -3455,7 +3455,7 @@ static void drawBjMainUI() {
 
 static void bjUpdateStatus() {
     // Fast partial update - content inside the frame only
-    tft.fillRect(15, 65, 210, 60, TFT_BLACK);
+    tft.fillRect(15, 65, SCREEN_WIDTH - 30, 60, TFT_BLACK);
     bjDrawGlitchText(90, BJ_MODE_DISPLAY[currentMode], &Nosifer_Regular12pt7b);
     if (jamming) {
         bjDrawFreeFont(120, "JAMMING", HALEHOUND_HOTPINK, &Nosifer_Regular10pt7b);
@@ -3468,17 +3468,17 @@ static void bjUpdateStats() {
     // Fast partial update - stats line only
     tft.setFreeFont(NULL);
     tft.setTextSize(1);
-    tft.fillRect(10, 140, 60, 10, TFT_BLACK);
+    tft.fillRect(10, SCALE_Y(140), 60, 10, TFT_BLACK);
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
-    tft.setCursor(10, 140);
+    tft.setCursor(10, SCALE_Y(140));
     tft.printf("CH:%03d", currentNRFChannel);
-    tft.fillRect(80, 140, 80, 10, TFT_BLACK);
+    tft.fillRect(SCALE_X(80), SCALE_Y(140), 80, 10, TFT_BLACK);
     tft.setTextColor(jamming ? HALEHOUND_HOTPINK : HALEHOUND_VIOLET, TFT_BLACK);
-    tft.setCursor(80, 140);
+    tft.setCursor(SCALE_X(80), SCALE_Y(140));
     tft.printf("CH#:%d", bjModes[currentMode].count);
-    tft.fillRect(170, 140, 70, 10, TFT_BLACK);
+    tft.fillRect(SCALE_X(170), SCALE_Y(140), 70, 10, TFT_BLACK);
     tft.setTextColor(HALEHOUND_MAGENTA, TFT_BLACK);
-    tft.setCursor(170, 140);
+    tft.setCursor(SCALE_X(170), SCALE_Y(140));
     tft.printf("HITS:%d", bjHitCount);
 }
 
@@ -3678,7 +3678,7 @@ static void drawAdvMarkers() {
 
 static void drawSkulls() {
     int skullStartX = 10;
-    int skullSpacing = 28;
+    int skullSpacing = (SCREEN_WIDTH - 20) / BJ_SKULL_NUM;
 
     // Map current NRF channel (2-80) to skull position (0-7)
     int activeSkull = ((currentNRFChannel - BJ_BT_NRF_START) * BJ_SKULL_NUM) / (BJ_BT_NRF_END - BJ_BT_NRF_START + 1);
@@ -3891,10 +3891,10 @@ void loop() {
     // ═══════════════════════════════════════════════════════════════════════
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        // Icon bar area (y=20-40)
-        if (ty >= 20 && ty <= 40) {
+        // Icon bar area
+        if (ty >= ICON_BAR_Y && ty <= (ICON_BAR_BOTTOM + 4)) {
             // Wait for touch release to prevent repeated triggers
-            while (isTouched()) { delay(10); }
+            waitForTouchRelease();
 
             // Back icon (x=10)
             if (tx >= 5 && tx <= 30) {

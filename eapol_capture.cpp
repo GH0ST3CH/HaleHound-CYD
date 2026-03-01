@@ -101,6 +101,7 @@ static bool sdReady = false;
 static bool savedPMKID = false;
 static bool savedHandshake = false;
 static bool notifiedCapture = false;  // Alert + auto-save fired for this capture
+static unsigned long scanReturnTime = 0;  // Timestamp when we returned to scan from capture
 
 // Deauth spinner — skull loading animation with HaleHound gradient
 static int deauthAnimFrame = 0;
@@ -148,16 +149,16 @@ static void wifiFullDeinit() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 static void drawECIconBar() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawBitmap(10, 20, bitmap_icon_go_back, 16, 16, HALEHOUND_MAGENTA);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawBitmap(10, ICON_BAR_Y, bitmap_icon_go_back, 16, 16, HALEHOUND_MAGENTA);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 static bool isECBackTapped() {
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        if (ty >= 20 && ty <= 36 && tx >= 10 && tx < 30) {
+        if (ty >= (ICON_BAR_Y - 2) && ty <= (ICON_BAR_BOTTOM + 4) && tx >= 10 && tx < 30) {
             delay(150);
             return true;
         }
@@ -665,12 +666,12 @@ static void drawScanScreen() {
     tft.fillScreen(HALEHOUND_BLACK);
     drawStatusBar();
     drawECIconBar();
-    drawGlitchText(55, "EAPOL CAPTURE", &Nosifer_Regular10pt7b);
-    tft.drawLine(0, 58, SCREEN_WIDTH, 58, HALEHOUND_HOTPINK);
+    drawGlitchText(SCALE_Y(55), "EAPOL CAPTURE", &Nosifer_Regular10pt7b);
+    tft.drawLine(0, SCALE_Y(58), SCREEN_WIDTH, SCALE_Y(58), HALEHOUND_HOTPINK);
 
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_MAGENTA);
-    tft.setCursor(10, 65);
+    tft.setCursor(10, SCALE_Y(65));
     tft.print("Scanning for targets...");
 }
 
@@ -698,35 +699,41 @@ static void runAPScan() {
 
 static void drawAPList() {
     // Clear list area
-    tft.fillRect(0, 60, SCREEN_WIDTH, 260, HALEHOUND_BLACK);
+    tft.fillRect(0, SCALE_Y(60), SCREEN_WIDTH, SCREEN_HEIGHT - SCALE_Y(60), HALEHOUND_BLACK);
 
     tft.setTextSize(1);
 
     if (apCount == 0) {
         tft.setTextColor(HALEHOUND_HOTPINK);
-        tft.setCursor(10, 100);
+        tft.setCursor(10, SCALE_Y(100));
         tft.print("No APs found! Tap back to retry.");
         return;
     }
 
     // Header
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 62);
+    tft.setCursor(10, SCALE_Y(62));
     tft.print("SSID");
-    tft.setCursor(160, 62);
+    tft.setCursor(SCALE_X(160), SCALE_Y(62));
     tft.print("CH");
-    tft.setCursor(185, 62);
+    tft.setCursor(SCALE_X(185), SCALE_Y(62));
     tft.print("RSSI");
-    tft.setCursor(215, 62);
+    tft.setCursor(SCREEN_WIDTH - 25, SCALE_Y(62));
     tft.print("ENC");
-    tft.drawLine(5, 72, 235, 72, HALEHOUND_VIOLET);
+    tft.drawLine(5, SCALE_Y(72), GRAPH_PADDED_W, SCALE_Y(72), HALEHOUND_VIOLET);
 
-    // List APs — fit max ~12 on screen at 16px spacing
+    // List APs — fit max items on screen at 16px spacing
+    int lineH = SCALE_Y(16);
+    int listStartY = SCALE_Y(76);
     int maxShow = apCount;
-    if (maxShow > 12) maxShow = 12;
+    int maxFit = (SCREEN_HEIGHT - listStartY - SCALE_Y(30)) / lineH;
+    if (maxShow > maxFit) maxShow = maxFit;
+
+    // Adaptive SSID truncation for screen width
+    int ssidMaxChars = (SCREEN_WIDTH > 240) ? 24 : 19;
 
     for (int i = 0; i < maxShow; i++) {
-        int y = 76 + (i * 16);
+        int y = listStartY + (i * lineH);
 
         // Only show WPA2+ (skip open/WEP — no EAPOL)
         bool hasEAPOL = (apList[i].authMode >= WIFI_AUTH_WPA_PSK);
@@ -735,22 +742,22 @@ static void drawAPList() {
         tft.setCursor(10, y);
 
         // Truncate SSID to fit
-        char truncSSID[20];
-        strncpy(truncSSID, apList[i].ssid, 19);
-        truncSSID[19] = '\0';
+        char truncSSID[26];
+        strncpy(truncSSID, apList[i].ssid, ssidMaxChars);
+        truncSSID[ssidMaxChars] = '\0';
         if (strlen(apList[i].ssid) == 0) {
             tft.print("[Hidden]");
         } else {
             tft.print(truncSSID);
         }
 
-        tft.setCursor(162, y);
+        tft.setCursor(SCALE_X(162), y);
         tft.printf("%2d", apList[i].channel);
 
-        tft.setCursor(185, y);
+        tft.setCursor(SCALE_X(185), y);
         tft.printf("%d", apList[i].rssi);
 
-        tft.setCursor(215, y);
+        tft.setCursor(SCREEN_WIDTH - 25, y);
         switch (apList[i].authMode) {
             case WIFI_AUTH_WPA2_PSK:     tft.print("WPA2"); break;
             case WIFI_AUTH_WPA_WPA2_PSK: tft.print("WPA2"); break;
@@ -764,17 +771,20 @@ static void drawAPList() {
 
     // Footer
     tft.setTextColor(HALEHOUND_GUNMETAL);
-    tft.setCursor(10, 76 + (maxShow * 16) + 8);
+    tft.setCursor(10, listStartY + (maxShow * lineH) + 8);
     tft.printf("Found %d APs -- tap WPA2+ to capture", apCount);
 }
 
 static int checkAPListTouch() {
     uint16_t tx, ty;
     if (!getTouchPoint(&tx, &ty)) return -1;
-    if (ty < 76 || ty > 268) return -1;
+    int listStartY = SCALE_Y(76);
+    int lineH = SCALE_Y(16);
+    int maxFit = (SCREEN_HEIGHT - listStartY - SCALE_Y(30)) / lineH;
+    if (ty < listStartY || ty > (listStartY + maxFit * lineH)) return -1;
 
-    int index = (ty - 76) / 16;
-    if (index < 0 || index >= apCount || index >= 12) return -1;
+    int index = (ty - listStartY) / lineH;
+    if (index < 0 || index >= apCount || index >= maxFit) return -1;
 
     // Only allow selecting WPA2+ (has EAPOL)
     if (apList[index].authMode < WIFI_AUTH_WPA_PSK) return -1;
@@ -789,14 +799,14 @@ static int checkAPListTouch() {
 
 // Deauth button layout
 #define EC_DEAUTH_X  10
-#define EC_DEAUTH_Y  268
-#define EC_DEAUTH_W  100
+#define EC_DEAUTH_Y  (SCREEN_HEIGHT - 52)
+#define EC_DEAUTH_W  SCALE_W(100)
 #define EC_DEAUTH_H  32
 
 // Save button layout
-#define EC_SAVE_X    130
-#define EC_SAVE_Y    268
-#define EC_SAVE_W    100
+#define EC_SAVE_X    (EC_DEAUTH_X + EC_DEAUTH_W + 10)
+#define EC_SAVE_Y    (SCREEN_HEIGHT - 52)
+#define EC_SAVE_W    SCALE_W(100)
 #define EC_SAVE_H    32
 
 static void drawCaptureScreen() {
@@ -805,20 +815,20 @@ static void drawCaptureScreen() {
     drawECIconBar();
 
     // Target SSID as title
-    drawGlitchText(55, apList[selectedAP].ssid, &Nosifer_Regular10pt7b);
-    tft.drawLine(0, 58, SCREEN_WIDTH, 58, HALEHOUND_MAGENTA);
+    drawGlitchText(SCALE_Y(55), apList[selectedAP].ssid, &Nosifer_Regular10pt7b);
+    tft.drawLine(0, SCALE_Y(58), SCREEN_WIDTH, SCALE_Y(58), HALEHOUND_MAGENTA);
 
     // Target info frame
-    tft.drawRoundRect(5, 62, 230, 30, 6, HALEHOUND_MAGENTA);
+    tft.drawRoundRect(5, SCALE_Y(62), GRAPH_PADDED_W, SCALE_H(30), 6, HALEHOUND_MAGENTA);
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 67);
+    tft.setCursor(10, SCALE_Y(67));
     tft.print("CH:");
     tft.setTextColor(HALEHOUND_MAGENTA);
     tft.printf("%d", apList[selectedAP].channel);
 
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(55, 67);
+    tft.setCursor(SCALE_X(55), SCALE_Y(67));
     tft.print("BSSID:");
     tft.setTextColor(HALEHOUND_MAGENTA);
     tft.printf("%02X:%02X:%02X:%02X:%02X:%02X",
@@ -827,32 +837,32 @@ static void drawCaptureScreen() {
                apList[selectedAP].bssid[4], apList[selectedAP].bssid[5]);
 
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 80);
+    tft.setCursor(10, SCALE_Y(80));
     tft.print("RSSI:");
     tft.setTextColor(HALEHOUND_MAGENTA);
     tft.printf("%d", apList[selectedAP].rssi);
 
     // Section labels
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 100);
+    tft.setCursor(10, SCALE_Y(100));
     tft.print("HANDSHAKE:");
-    tft.setCursor(10, 128);
+    tft.setCursor(10, SCALE_Y(128));
     tft.print("PMKID:");
-    tft.setCursor(10, 156);
+    tft.setCursor(10, SCALE_Y(156));
     tft.print("PACKETS:");
-    tft.setCursor(10, 170);
+    tft.setCursor(10, SCALE_Y(170));
     tft.print("EAPOL:");
-    tft.setCursor(10, 184);
+    tft.setCursor(10, SCALE_Y(184));
     tft.print("TIME:");
 
-    tft.drawLine(5, 198, 235, 198, HALEHOUND_MAGENTA);
+    tft.drawLine(5, SCALE_Y(198), GRAPH_PADDED_W, SCALE_Y(198), HALEHOUND_MAGENTA);
 
     // Status area label
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(10, 205);
+    tft.setCursor(10, SCALE_Y(205));
     tft.print("STATUS:");
 
-    tft.drawLine(5, 258, 235, 258, HALEHOUND_MAGENTA);
+    tft.drawLine(5, EC_DEAUTH_Y - 10, GRAPH_PADDED_W, EC_DEAUTH_Y - 10, HALEHOUND_MAGENTA);
 
     // Deauth button — skull icon + text
     tft.drawRoundRect(EC_DEAUTH_X, EC_DEAUTH_Y, EC_DEAUTH_W, EC_DEAUTH_H, 6, HALEHOUND_HOTPINK);
@@ -875,48 +885,51 @@ static void updateCaptureDisplay() {
 
     // ── Handshake message indicators ──
     // Draw as boxes: [M1] [M2] [M3] [M4]
-    tft.fillRect(85, 97, 150, 16, HALEHOUND_BLACK);
+    int hsY = SCALE_Y(97);
+    tft.fillRect(SCALE_X(85), hsY, SCALE_W(150), 16, HALEHOUND_BLACK);
 
-    int mx = 85;
+    int mx = SCALE_X(85);
+    int mboxW = SCALE_W(30);
+    int mboxGap = SCALE_W(35);
     uint16_t m1c = hasMsg1 ? HALEHOUND_MAGENTA : HALEHOUND_GUNMETAL;
     uint16_t m2c = hasMsg2 ? HALEHOUND_MAGENTA : HALEHOUND_GUNMETAL;
     uint16_t m3c = hasMsg3 ? HALEHOUND_MAGENTA : HALEHOUND_GUNMETAL;
     uint16_t m4c = hasMsg4 ? HALEHOUND_MAGENTA : HALEHOUND_GUNMETAL;
 
-    tft.drawRect(mx, 98, 30, 14, m1c);
+    tft.drawRect(mx, hsY + 1, mboxW, 14, m1c);
     tft.setTextColor(m1c);
-    tft.setCursor(mx + 6, 101);
+    tft.setCursor(mx + 6, hsY + 3);
     tft.print("M1");
-    mx += 35;
+    mx += mboxGap;
 
-    tft.drawRect(mx, 98, 30, 14, m2c);
+    tft.drawRect(mx, hsY + 1, mboxW, 14, m2c);
     tft.setTextColor(m2c);
-    tft.setCursor(mx + 6, 101);
+    tft.setCursor(mx + 6, hsY + 3);
     tft.print("M2");
-    mx += 35;
+    mx += mboxGap;
 
-    tft.drawRect(mx, 98, 30, 14, m3c);
+    tft.drawRect(mx, hsY + 1, mboxW, 14, m3c);
     tft.setTextColor(m3c);
-    tft.setCursor(mx + 6, 101);
+    tft.setCursor(mx + 6, hsY + 3);
     tft.print("M3");
-    mx += 35;
+    mx += mboxGap;
 
-    tft.drawRect(mx, 98, 30, 14, m4c);
+    tft.drawRect(mx, hsY + 1, mboxW, 14, m4c);
     tft.setTextColor(m4c);
-    tft.setCursor(mx + 6, 101);
+    tft.setCursor(mx + 6, hsY + 3);
     tft.print("M4");
 
     // Handshake complete indicator
     if (hasHandshake) {
-        tft.fillRect(85, 113, 150, 10, HALEHOUND_BLACK);
+        tft.fillRect(SCALE_X(85), SCALE_Y(113), SCALE_W(150), 10, HALEHOUND_BLACK);
         tft.setTextColor(HALEHOUND_MAGENTA);
-        tft.setCursor(85, 113);
+        tft.setCursor(SCALE_X(85), SCALE_Y(113));
         tft.print("CAPTURED!");
     }
 
     // ── PMKID status ──
-    tft.fillRect(55, 125, 180, 16, HALEHOUND_BLACK);
-    tft.setCursor(55, 128);
+    tft.fillRect(SCALE_X(55), SCALE_Y(125), SCALE_W(180), 16, HALEHOUND_BLACK);
+    tft.setCursor(SCALE_X(55), SCALE_Y(128));
     if (hasPMKID) {
         if (blinkState) {
             tft.setTextColor(HALEHOUND_MAGENTA);
@@ -927,7 +940,7 @@ static void updateCaptureDisplay() {
         }
         // Show first 8 bytes
         tft.setTextColor(HALEHOUND_GUNMETAL);
-        tft.setCursor(105, 128);
+        tft.setCursor(SCALE_X(105), SCALE_Y(128));
         char pmkidPreview[17];
         bytesToHex(pmkidBytes, 8, pmkidPreview);
         tft.print(pmkidPreview);
@@ -937,69 +950,71 @@ static void updateCaptureDisplay() {
     }
 
     // ── Stats ──
-    tft.fillRect(65, 153, 170, 40, HALEHOUND_BLACK);
+    tft.fillRect(SCALE_X(65), SCALE_Y(153), SCALE_W(170), SCALE_H(40), HALEHOUND_BLACK);
 
     tft.setTextColor(HALEHOUND_MAGENTA);
-    tft.setCursor(65, 156);
+    tft.setCursor(SCALE_X(65), SCALE_Y(156));
     tft.print(packetCount);
 
-    tft.setCursor(65, 170);
+    tft.setCursor(SCALE_X(65), SCALE_Y(170));
     tft.print(eapolCount);
 
     // Elapsed time
     unsigned long elapsed = (millis() - captureStartTime) / 1000;
-    tft.setCursor(65, 184);
+    tft.setCursor(SCALE_X(65), SCALE_Y(184));
     tft.printf("%lum %lus", elapsed / 60, elapsed % 60);
 
     // ── Status message ──
-    tft.fillRect(5, 200, 230, 55, HALEHOUND_BLACK);
+    int statusAreaY = SCALE_Y(200);
+    int statusAreaH = EC_DEAUTH_Y - 10 - statusAreaY;
+    tft.fillRect(5, statusAreaY, GRAPH_PADDED_W, statusAreaH, HALEHOUND_BLACK);
 
     if (hasPMKID && hasHandshake) {
-        tft.setCursor(10, 220);
+        tft.setCursor(10, SCALE_Y(220));
         tft.setTextColor(HALEHOUND_MAGENTA);
         tft.print("PMKID + Handshake captured!");
-        tft.setCursor(10, 234);
+        tft.setCursor(10, SCALE_Y(234));
         tft.print("Tap SAVE for hashcat file");
     } else if (hasPMKID) {
-        tft.setCursor(10, 220);
+        tft.setCursor(10, SCALE_Y(220));
         tft.setTextColor(HALEHOUND_MAGENTA);
         tft.print("PMKID captured!");
-        tft.setCursor(10, 234);
+        tft.setCursor(10, SCALE_Y(234));
         tft.print("Tap SAVE or wait for handshake");
     } else if (hasHandshake) {
-        tft.setCursor(10, 220);
+        tft.setCursor(10, SCALE_Y(220));
         tft.setTextColor(HALEHOUND_MAGENTA);
         tft.print("Handshake captured!");
-        tft.setCursor(10, 234);
+        tft.setCursor(10, SCALE_Y(234));
         tft.print("Tap SAVE for hashcat file");
     } else if (deauthRunning) {
         // Animated skull spinner with HaleHound gradient
         uint16_t color = gradientColors[deauthAnimFrame % GRADIENT_COUNT];
-        tft.drawBitmap(10, 205, skullFrames[deauthAnimFrame % SKULL_FRAME_COUNT], 16, 16, color);
+        tft.drawBitmap(10, SCALE_Y(205), skullFrames[deauthAnimFrame % SKULL_FRAME_COUNT], 16, 16, color);
         tft.setTextSize(2);
         tft.setTextColor(color);
-        tft.setCursor(32, 207);
+        tft.setCursor(32, SCALE_Y(207));
         tft.print("DEAUTHING");
         tft.setTextSize(1);
         // Show burst count below
         tft.setTextColor(HALEHOUND_GUNMETAL);
-        tft.setCursor(32, 228);
+        tft.setCursor(32, SCALE_Y(228));
         tft.printf("CH:%d  %d frames/burst", apList[selectedAP].channel, EC_DEAUTH_BURST);
         // Progress dots in gradient
         int dotX = 10;
         for (int d = 0; d < GRADIENT_COUNT; d++) {
             uint16_t dc = (d <= deauthAnimFrame % GRADIENT_COUNT) ? gradientColors[d] : HALEHOUND_GUNMETAL;
-            tft.fillCircle(dotX + (d * 12), 244, 3, dc);
+            tft.fillCircle(dotX + (d * SCALE_X(12)), SCALE_Y(244), 3, dc);
         }
         deauthAnimFrame++;
     } else if (eapolCount > 0) {
-        tft.setCursor(10, 220);
+        tft.setCursor(10, SCALE_Y(220));
         tft.setTextColor(HALEHOUND_VIOLET);
         tft.print("EAPOL frames detected...");
-        tft.setCursor(10, 234);
+        tft.setCursor(10, SCALE_Y(234));
         tft.print("Waiting for full handshake");
     } else {
-        tft.setCursor(10, 220);
+        tft.setCursor(10, SCALE_Y(220));
         tft.setTextColor(HALEHOUND_GUNMETAL);
         if (blinkState) {
             tft.print("Listening...");
@@ -1068,6 +1083,7 @@ void setup() {
     deauthRunning = false;
     deauthAnimFrame = 0;
     lastDeauthSend = 0;
+    scanReturnTime = 0;
     msg1Len = msg2Len = beaconLen = 0;
     memset(pmkidBytes, 0, sizeof(pmkidBytes));
     memset(anonceBytes, 0, sizeof(anonceBytes));
@@ -1090,15 +1106,19 @@ void loop() {
 
     // Check back button
     if (isECBackTapped() || buttonPressed(BTN_BACK) || buttonPressed(BTN_BOOT)) {
+        Serial.printf("[EAPOL-BACK] FIRED phase=%d (0=SCAN,1=CAPTURE)\n", currentPhase);
         if (currentPhase == PHASE_CAPTURE) {
+            Serial.println("[EAPOL-BACK] CAPTURE->SCAN transition starting");
             // Auto-save if we have captures
             if ((hasPMKID || hasHandshake) && !savedPMKID && !savedHandshake) {
                 saveCaptures();
             }
-            // Back to AP list
+            // Back to AP list — full WiFi teardown required because
+            // initPromiscuous() used raw ESP-IDF APSTA mode which desyncs
+            // Arduino's _esp_wifi_started flag.
             deauthRunning = false;
             notifiedCapture = false;
-            stopPromiscuous();
+            wifiFullDeinit();
             currentPhase = PHASE_SCAN;
             packetCount = 0;
             eapolCount = 0;
@@ -1108,10 +1128,23 @@ void loop() {
             msg1Len = msg2Len = beaconLen = 0;
 
             drawScanScreen();
+            Serial.println("[EAPOL-BACK] runAPScan starting...");
             runAPScan();
+            Serial.printf("[EAPOL-BACK] runAPScan done, found %d APs\n", apCount);
             drawAPList();
+            scanReturnTime = millis();
+            waitForTouchRelease();
+            Serial.println("[EAPOL-BACK] waitForTouchRelease done, returning to scan loop");
             return;
         }
+        // Guard: block exit for 1s after returning to scan from capture
+        // Prevents double-fire from residual touch/debounce issues
+        if (scanReturnTime > 0 && (millis() - scanReturnTime < 1000)) {
+            Serial.printf("[EAPOL-BACK] EXIT BLOCKED — only %lums since scan return\n",
+                          millis() - scanReturnTime);
+            return;
+        }
+        Serial.println("[EAPOL-BACK] SCAN->EXIT");
         exitRequested = true;
         return;
     }
@@ -1204,20 +1237,22 @@ void loop() {
             saveCaptures();
 
             // Flash big alert banner across the status area
+            int alertY = SCALE_Y(200);
+            int alertH = EC_DEAUTH_Y - 10 - alertY;
             for (int flash = 0; flash < 4; flash++) {
-                tft.fillRect(5, 200, 230, 55, (flash % 2) ? HALEHOUND_BLACK : HALEHOUND_MAGENTA);
+                tft.fillRect(5, alertY, GRAPH_PADDED_W, alertH, (flash % 2) ? HALEHOUND_BLACK : HALEHOUND_MAGENTA);
                 tft.setTextSize(2);
                 tft.setTextColor((flash % 2) ? HALEHOUND_MAGENTA : HALEHOUND_BLACK);
                 if (hasPMKID && hasHandshake) {
-                    tft.setCursor(15, 207);
+                    tft.setCursor(15, SCALE_Y(207));
                     tft.print("PMKID +");
-                    tft.setCursor(15, 228);
+                    tft.setCursor(15, SCALE_Y(228));
                     tft.print("HANDSHAKE!");
                 } else if (hasPMKID) {
-                    tft.setCursor(30, 215);
+                    tft.setCursor(30, SCALE_Y(215));
                     tft.print("PMKID!");
                 } else {
-                    tft.setCursor(15, 215);
+                    tft.setCursor(15, SCALE_Y(215));
                     tft.print("HANDSHAKE!");
                 }
                 delay(250);

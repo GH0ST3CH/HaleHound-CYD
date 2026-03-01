@@ -18,14 +18,14 @@ extern TFT_eSPI tft;
 // CONSTANTS
 // =============================================================================
 
-#define TERM_COLS          40       // Characters per line (240px / 6px font)
-#define TERM_ROWS          32       // Visible rows (256px / 8px font)
+#define TERM_COLS          ((SCREEN_WIDTH > 240) ? 53 : 40)   // Characters per line (px / 6px font)
+#define TERM_ROWS          ((SCREEN_HEIGHT - 56) / 8)         // Visible rows (usable area / 8px font)
 #define RING_SIZE          64       // Total lines in ring buffer
 #define LINE_BUF_SIZE     128       // Incoming line accumulator
 #define TERM_Y_START       40       // First terminal row Y position
 #define TERM_ROW_HEIGHT     8       // Font size 1 = 8px per row
 #define TERM_TEXT_COLOR  0x07FF     // Real cyan for terminal readability
-#define STATUS_Y          302       // Status line Y position
+#define STATUS_Y          (SCREEN_HEIGHT - 18)  // Status line Y position
 #define ICON_SIZE          16       // Icon bitmap size
 
 // =============================================================================
@@ -102,7 +102,7 @@ static void redrawTerminal() {
     if (totalVisible < TERM_ROWS) {
         int clearY = TERM_Y_START + totalVisible * TERM_ROW_HEIGHT;
         int clearH = (TERM_ROWS - totalVisible) * TERM_ROW_HEIGHT;
-        tft.fillRect(0, clearY, tft.width(), clearH, TFT_BLACK);
+        tft.fillRect(0, clearY, SCREEN_WIDTH, clearH, TFT_BLACK);
     }
 }
 
@@ -133,7 +133,7 @@ static void scrollAndDrawLine(const char* text) {
 // =============================================================================
 
 static void updateStatusLine() {
-    tft.fillRect(0, STATUS_Y, tft.width(), 16, TFT_BLACK);
+    tft.fillRect(0, STATUS_Y, SCREEN_WIDTH, 16, TFT_BLACK);
     tft.setTextSize(1);
 
     // RX byte count - left side
@@ -150,11 +150,11 @@ static void updateStatusLine() {
     // LIVE/PAUSED - right side
     if (monPaused) {
         tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-        tft.setCursor(192, STATUS_Y + 4);
+        tft.setCursor(SCREEN_WIDTH - 48, STATUS_Y + 4);
         tft.print("PAUSED");
     } else {
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
-        tft.setCursor(204, STATUS_Y + 4);
+        tft.setCursor(SCREEN_WIDTH - 36, STATUS_Y + 4);
         tft.print("LIVE");
     }
 }
@@ -235,10 +235,13 @@ static void stopUART() {
 
 static void drawBaudSelector() {
     // Clear baud area
-    tft.fillRect(20, 85, 200, 40, TFT_BLACK);
+    int baudY = SCALE_Y(85);
+    int baudW = CONTENT_INNER_W;
+    int baudX = (SCREEN_WIDTH - baudW) / 2;
+    tft.fillRect(baudX, baudY, baudW, 40, TFT_BLACK);
 
     // Rounded rect border
-    tft.drawRoundRect(20, 85, 200, 40, 6, HALEHOUND_MAGENTA);
+    tft.drawRoundRect(baudX, baudY, baudW, 40, 6, HALEHOUND_MAGENTA);
 
     // Baud rate value centered
     char buf[16];
@@ -246,68 +249,76 @@ static void drawBaudSelector() {
     tft.setTextSize(2);
     tft.setTextColor(TERM_TEXT_COLOR, TFT_BLACK);
     int textW = strlen(buf) * 12;  // Size 2 = 12px per char
-    tft.setCursor((tft.width() - textW) / 2, 95);
+    tft.setCursor((SCREEN_WIDTH - textW) / 2, baudY + 10);
     tft.print(buf);
 
     // Tap arrows
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_GUNMETAL, TFT_BLACK);
-    tft.setCursor(28, 100);
+    tft.setCursor(baudX + 8, baudY + 15);
     tft.print("<");
-    tft.setCursor(208, 100);
+    tft.setCursor(baudX + baudW - 12, baudY + 15);
     tft.print(">");
 }
 
 static void drawPinSelector() {
     // Clear pin area
-    tft.fillRect(10, 150, 220, 35, TFT_BLACK);
+    int pinY = SCALE_Y(150);
+    int btnW = (SCREEN_WIDTH - 36) / 2;
+    tft.fillRect(10, pinY, CONTENT_INNER_W, 35, TFT_BLACK);
 
     // P1 DUPLEX button
     if (selectedPin == UART_PIN_P1) {
-        tft.fillRoundRect(12, 152, 100, 30, 6, HALEHOUND_MAGENTA);
+        tft.fillRoundRect(12, pinY + 2, btnW, 30, 6, HALEHOUND_MAGENTA);
         tft.setTextColor(TFT_BLACK);
     } else {
-        tft.drawRoundRect(12, 152, 100, 30, 6, HALEHOUND_GUNMETAL);
+        tft.drawRoundRect(12, pinY + 2, btnW, 30, 6, HALEHOUND_GUNMETAL);
         tft.setTextColor(HALEHOUND_GUNMETAL);
     }
     tft.setTextSize(1);
-    tft.setCursor(24, 162);
+    tft.setCursor(12 + (btnW - 54) / 2, pinY + 12);
     tft.print("P1 DUPLEX");
 
     // SPK RX button
+    int spkX = SCREEN_WIDTH / 2 + 4;
     if (selectedPin == UART_PIN_SPEAKER) {
-        tft.fillRoundRect(128, 152, 100, 30, 6, HALEHOUND_MAGENTA);
+        tft.fillRoundRect(spkX, pinY + 2, btnW, 30, 6, HALEHOUND_MAGENTA);
         tft.setTextColor(TFT_BLACK);
     } else {
-        tft.drawRoundRect(128, 152, 100, 30, 6, HALEHOUND_GUNMETAL);
+        tft.drawRoundRect(spkX, pinY + 2, btnW, 30, 6, HALEHOUND_GUNMETAL);
         tft.setTextColor(HALEHOUND_GUNMETAL);
     }
     tft.setTextSize(1);
-    tft.setCursor(148, 162);
+    tft.setCursor(spkX + (btnW - 36) / 2, pinY + 12);
     tft.print("SPK RX");
 }
 
 static void drawStartButton() {
-    tft.fillRoundRect(40, 200, 160, 40, 8, TFT_GREEN);
+    int btnW = SCALE_W(160);
+    int btnX = (SCREEN_WIDTH - btnW) / 2;
+    int btnY = SCALE_Y(200);
+    tft.fillRoundRect(btnX, btnY, btnW, 40, 8, TFT_GREEN);
     tft.setTextSize(2);
     tft.setTextColor(TFT_BLACK);
-    tft.setCursor(72, 210);
+    int textW = 5 * 12;  // "START" = 5 chars * 12px
+    tft.setCursor(btnX + (btnW - textW) / 2, btnY + 10);
     tft.print("START");
 }
 
 static void drawWiringHint() {
-    tft.fillRect(0, 250, tft.width(), 30, TFT_BLACK);
+    int hintY = SCALE_Y(250);
+    tft.fillRect(0, hintY, SCREEN_WIDTH, 30, TFT_BLACK);
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_GUNMETAL);
     if (selectedPin == UART_PIN_P1) {
-        tft.setCursor(30, 255);
+        tft.setCursor(30, hintY + 5);
         tft.print("P1: RX=GPIO3  TX=GPIO1");
-        tft.setCursor(30, 267);
+        tft.setCursor(30, hintY + 17);
         tft.print("Connect target TX->RX");
     } else {
-        tft.setCursor(40, 255);
+        tft.setCursor(40, hintY + 5);
         tft.print("SPK: RX=GPIO26 (only)");
-        tft.setCursor(35, 267);
+        tft.setCursor(35, hintY + 17);
         tft.print("Connect target TX->RX");
     }
 }
@@ -317,24 +328,24 @@ static void drawConfigScreen() {
     drawStatusBar();
 
     // Icon bar - back only
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
-    tft.drawBitmap(10, 20, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
+    tft.drawBitmap(10, ICON_BAR_Y, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 
     // Glitch title
-    drawGlitchTitle(48, "UART TERM");
+    drawGlitchTitle(SCALE_Y(48), "UART TERM");
 
     // Baud rate section
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(85, 72);
+    tft.setCursor(SCALE_X(85), SCALE_Y(72));
     tft.print("BAUD RATE");
     drawBaudSelector();
 
     // Pin select section
     tft.setTextColor(HALEHOUND_HOTPINK);
-    tft.setCursor(80, 138);
+    tft.setCursor(SCALE_X(80), SCALE_Y(138));
     tft.print("PIN SELECT");
     drawPinSelector();
 
@@ -350,22 +361,25 @@ static int handleConfigTouch() {
     uint16_t tx, ty;
     if (!getTouchPoint(&tx, &ty)) return 0;
 
-    // Back icon (y=20-36, x=10-26)
-    if (ty >= 20 && ty <= 36 && tx >= 10 && tx < 26) {
+    // Back icon
+    if (ty >= (ICON_BAR_Y - 2) && ty <= (ICON_BAR_BOTTOM + 4) && tx >= 10 && tx < 26) {
         delay(150);
         return -1;
     }
 
-    // Baud selector area (y=85-125, x=20-220)
-    if (ty >= 85 && ty <= 125 && tx >= 20 && tx <= 220) {
+    // Baud selector area
+    int baudY = SCALE_Y(85);
+    if (ty >= baudY && ty <= (baudY + 40) && tx >= 10 && tx <= (SCREEN_WIDTH - 10)) {
         selectedBaudIndex = (selectedBaudIndex + 1) % numBaudRates;
         drawBaudSelector();
         delay(200);
         return 0;
     }
 
-    // P1 DUPLEX button (y=150-185, x=12-112)
-    if (ty >= 150 && ty <= 185 && tx >= 12 && tx <= 112) {
+    // P1 DUPLEX button
+    int pinY = SCALE_Y(150);
+    int btnW = (SCREEN_WIDTH - 36) / 2;
+    if (ty >= pinY && ty <= (pinY + 35) && tx >= 12 && tx <= (12 + btnW)) {
         if (selectedPin != UART_PIN_P1) {
             selectedPin = UART_PIN_P1;
             drawPinSelector();
@@ -375,8 +389,9 @@ static int handleConfigTouch() {
         return 0;
     }
 
-    // SPK RX button (y=150-185, x=128-228)
-    if (ty >= 150 && ty <= 185 && tx >= 128 && tx <= 228) {
+    // SPK RX button
+    int spkX = SCREEN_WIDTH / 2 + 4;
+    if (ty >= pinY && ty <= (pinY + 35) && tx >= spkX && tx <= (spkX + btnW)) {
         if (selectedPin != UART_PIN_SPEAKER) {
             selectedPin = UART_PIN_SPEAKER;
             drawPinSelector();
@@ -386,8 +401,11 @@ static int handleConfigTouch() {
         return 0;
     }
 
-    // START button (bottom area, x=40-200)
-    if (ty >= (tft.height() - 120) && ty <= (tft.height() - 80) && tx >= 40 && tx <= 200) {
+    // START button
+    int startY = SCALE_Y(200);
+    int startW = SCALE_W(160);
+    int startX = (SCREEN_WIDTH - startW) / 2;
+    if (ty >= startY && ty <= (startY + 40) && tx >= startX && tx <= (startX + startW)) {
         delay(150);
         return 1;
     }
@@ -400,27 +418,27 @@ static int handleConfigTouch() {
 // =============================================================================
 
 static void drawTermIconBar() {
-    tft.drawLine(0, 19, SCREEN_WIDTH, 19, HALEHOUND_MAGENTA);
-    tft.fillRect(0, 20, SCREEN_WIDTH, 16, HALEHOUND_DARK);
+    tft.drawLine(0, ICON_BAR_TOP, SCREEN_WIDTH, ICON_BAR_TOP, HALEHOUND_MAGENTA);
+    tft.fillRect(0, ICON_BAR_Y, SCREEN_WIDTH, ICON_BAR_H, HALEHOUND_DARK);
 
     // Icons: back | pause | clear
-    tft.drawBitmap(10, 20, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
-    tft.drawBitmap(40, 20, monPaused ? bitmap_icon_eye2 : bitmap_icon_eye, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
-    tft.drawBitmap(70, 20, bitmap_icon_recycle, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
+    tft.drawBitmap(10, ICON_BAR_Y, bitmap_icon_go_back, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
+    tft.drawBitmap(40, ICON_BAR_Y, monPaused ? bitmap_icon_eye2 : bitmap_icon_eye, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
+    tft.drawBitmap(70, ICON_BAR_Y, bitmap_icon_recycle, ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
 
     // Baud rate text label
     char buf[16];
     snprintf(buf, sizeof(buf), "%ld", baudRates[selectedBaudIndex]);
     tft.setTextSize(1);
     tft.setTextColor(HALEHOUND_GUNMETAL, HALEHOUND_DARK);
-    tft.setCursor(110, 24);
+    tft.setCursor(SCALE_X(110), ICON_BAR_Y + 4);
     tft.print(buf);
 
     // Pin mode text label
-    tft.setCursor(185, 24);
+    tft.setCursor(SCREEN_WIDTH - 30, ICON_BAR_Y + 4);
     tft.print(selectedPin == UART_PIN_P1 ? "P1" : "SPK");
 
-    tft.drawLine(0, 36, SCREEN_WIDTH, 36, HALEHOUND_HOTPINK);
+    tft.drawLine(0, ICON_BAR_BOTTOM, SCREEN_WIDTH, ICON_BAR_BOTTOM, HALEHOUND_HOTPINK);
 }
 
 static void drawTerminalScreen() {
@@ -429,7 +447,7 @@ static void drawTerminalScreen() {
     drawTermIconBar();
 
     // Separator
-    tft.drawLine(0, 38, SCREEN_WIDTH, 38, HALEHOUND_HOTPINK);
+    tft.drawLine(0, CONTENT_Y_START, SCREEN_WIDTH, CONTENT_Y_START, HALEHOUND_HOTPINK);
 
     // Terminal area starts clear (black) - lines drawn by scrollAndDrawLine
 
@@ -440,7 +458,7 @@ static void drawTerminalScreen() {
 static bool isTermBackTapped() {
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        if (ty >= 20 && ty <= 36 && tx >= 10 && tx < 26) {
+        if (ty >= (ICON_BAR_Y - 2) && ty <= (ICON_BAR_BOTTOM + 4) && tx >= 10 && tx < 26) {
             delay(150);
             return true;
         }
@@ -451,7 +469,7 @@ static bool isTermBackTapped() {
 static bool isTermPauseTapped() {
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        if (ty >= 20 && ty <= 36 && tx >= 40 && tx < 56) {
+        if (ty >= (ICON_BAR_Y - 2) && ty <= (ICON_BAR_BOTTOM + 4) && tx >= 40 && tx < 56) {
             delay(150);
             return true;
         }
@@ -462,7 +480,7 @@ static bool isTermPauseTapped() {
 static bool isTermClearTapped() {
     uint16_t tx, ty;
     if (getTouchPoint(&tx, &ty)) {
-        if (ty >= 20 && ty <= 36 && tx >= 70 && tx < 86) {
+        if (ty >= (ICON_BAR_Y - 2) && ty <= (ICON_BAR_BOTTOM + 4) && tx >= 70 && tx < 86) {
             delay(150);
             return true;
         }
@@ -556,8 +574,8 @@ void serialMonitorScreen() {
         } else if (isTermPauseTapped()) {
             monPaused = !monPaused;
             // Update pause icon
-            tft.fillRect(40, 20, ICON_SIZE, ICON_SIZE, HALEHOUND_DARK);
-            tft.drawBitmap(40, 20, monPaused ? bitmap_icon_eye2 : bitmap_icon_eye,
+            tft.fillRect(40, ICON_BAR_Y, ICON_SIZE, ICON_SIZE, HALEHOUND_DARK);
+            tft.drawBitmap(40, ICON_BAR_Y, monPaused ? bitmap_icon_eye2 : bitmap_icon_eye,
                            ICON_SIZE, ICON_SIZE, HALEHOUND_MAGENTA);
             if (!monPaused) {
                 // Resuming - redraw terminal to show lines buffered while paused
