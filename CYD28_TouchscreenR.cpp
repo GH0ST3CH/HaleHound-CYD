@@ -29,6 +29,16 @@
 #include "CYD28_TouchscreenR.h"
 #include <SPI.h>
 
+#ifndef XH32S_T_CLK
+#define XH32S_T_CLK  14
+#define XH32S_T_MOSI 13
+#define XH32S_T_MISO 12
+#define XH32S_T_CS   33
+#endif
+
+static SPIClass s_touchSPI(HSPI);
+static bool s_touchSPI_inited = false;
+
 #define ISR_PREFIX IRAM_ATTR
 #define MSEC_THRESHOLD 3
 #define SPI_SETTING SPISettings(2000000, MSBFIRST, SPI_MODE0)
@@ -37,17 +47,23 @@ static CYD28_TouchR *isrPinptr;
 void isrPin(void);
 // ------------------------------------------------------------
 bool CYD28_TouchR::begin() {
-    pinMode(CYD28_TouchR_MOSI, OUTPUT);
-    pinMode(CYD28_TouchR_MISO, INPUT);
-    pinMode(CYD28_TouchR_CLK, OUTPUT);
-    pinMode(CYD28_TouchR_CS, OUTPUT);
-    digitalWrite(CYD28_TouchR_CLK, LOW);
-    digitalWrite(CYD28_TouchR_CS, HIGH);
+    _pspi = &s_touchSPI;
+
+    if (!s_touchSPI_inited) {
+        s_touchSPI.begin(XH32S_T_CLK, XH32S_T_MISO, XH32S_T_MOSI, XH32S_T_CS);
+        s_touchSPI_inited = true;
+    }
+
+    pinMode(XH32S_T_CS, OUTPUT);
+    digitalWrite(XH32S_T_CS, HIGH);
+
     if (CYD28_TouchR_IRQ != -1) {
         pinMode(CYD28_TouchR_IRQ, INPUT);
         attachInterrupt(digitalPinToInterrupt(CYD28_TouchR_IRQ), isrPin, FALLING);
         isrPinptr = this;
-    } else isrWake = true;
+    } else {
+        isrWake = true;
+    }
 
     return true;
 }
@@ -139,8 +155,10 @@ CYD28_TS_Point CYD28_TouchR::getPointRaw() {
 }
 // ------------------------------------------------------------
 bool CYD28_TouchR::touched() {
-    update();
-    return (zraw >= threshold);  // Removed isrWake check - poll directly
+  uint16_t x, y;
+  uint8_t z;
+  readData(&x, &y, &z);
+  return (z > CYD28_TouchR_Z_THRES_INT);
 }
 // ------------------------------------------------------------
 void CYD28_TouchR::readData(uint16_t *x, uint16_t *y, uint8_t *z) {
@@ -174,7 +192,7 @@ void CYD28_TouchR::update() {
     uint32_t now = millis();
     if (now - msraw < MSEC_THRESHOLD) return;
 
-    digitalWrite(CYD28_TouchR_CS, LOW);
+    digitalWrite(XH32S_T_CS, LOW);
 
     if (_pspi != nullptr) _pspi->beginTransaction(SPI_SETTING);
 
@@ -195,7 +213,7 @@ void CYD28_TouchR::update() {
 
     if (_pspi != nullptr) _pspi->endTransaction();
 
-    digitalWrite(CYD28_TouchR_CS, HIGH);
+    digitalWrite(XH32S_T_CS, HIGH);
 
     if (z < 0) z = 0;
     if (z < threshold) {
