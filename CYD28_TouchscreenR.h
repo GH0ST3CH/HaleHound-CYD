@@ -41,14 +41,22 @@
   #define CYD28_TouchR_MISO   XPT2046_SPI_BUS_MISO_IO_NUM
   #define CYD28_TouchR_CLK    XPT2046_SPI_BUS_SCLK_IO_NUM
   #define CYD28_TouchR_CS     XPT2046_SPI_CONFIG_CS_GPIO_NUM
-#else
-  #define CYD28_TouchR_IRQ  36
-  #define CYD28_TouchR_MOSI   32
-  #define CYD28_TouchR_MISO   39
-  #define CYD28_TouchR_CLK  25
-  #define CYD28_TouchR_CS   33
 
+#elif defined(XH32S_CYD)
+  #define CYD28_TouchR_IRQ   -1
+  #define CYD28_TouchR_MOSI  13
+  #define CYD28_TouchR_MISO  12
+  #define CYD28_TouchR_CLK   14
+  #define CYD28_TouchR_CS    33
+
+#else
+  #define CYD28_TouchR_IRQ   36
+  #define CYD28_TouchR_MOSI  32
+  #define CYD28_TouchR_MISO  39
+  #define CYD28_TouchR_CLK   25
+  #define CYD28_TouchR_CS    33
 #endif
+
 // CALIBRATION VALUES - original
 #define CYD28_TouchR_CAL_XMIN 185
 #define CYD28_TouchR_CAL_XMAX 3700
